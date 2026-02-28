@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gableton.example.com/schemas/import-report.schema.json",
+  "title": "Gableton Import Report",
+  "type": "object",
+  "required": [
+    "command",
+    "checkpoint_id",
+    "repo_id",
+    "source_branch",
+    "target_ref",
+    "source_head",
+    "simulate",
+    "api_base_url",
+    "stats",
+    "warnings"
+  ],
+  "properties": {
+    "command": {
+      "type": "string",
+      "enum": [
+        "dry-run",
+        "execute",
+        "resume"
+      ]
+    },
+    "checkpoint_id": {
+      "type": "string"
+    },
+    "repo_id": {
+      "type": "string"
+    },
+    "source_branch": {
+      "type": "string"
+    },
+    "target_ref": {
+      "type": "string"
+    },
+    "source_head": {
+      "type": "string"
+    },
+    "simulate": {
+      "type": "boolean"
+    },
+    "api_base_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "stats": {
+      "type": "object",
+      "required": [
+        "commit_count",
+        "file_count_total",
+        "tree_bytes_total",
+        "imported_commits",
+        "failed_commits",
+        "pending_commits"
+      ],
+      "properties": {
+        "commit_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "file_count_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tree_bytes_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "imported_commits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed_commits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pending_commits": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "checkpoint_path": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

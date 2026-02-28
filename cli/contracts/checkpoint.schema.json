@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gableton.example.com/schemas/checkpoint.schema.json",
+  "title": "Gableton Import Checkpoint",
+  "type": "object",
+  "required": [
+    "version",
+    "checkpoint_id",
+    "mode",
+    "created_at",
+    "updated_at",
+    "repo_path",
+    "repo_id",
+    "source_branch",
+    "target_ref",
+    "source_head",
+    "commits",
+    "warnings",
+    "stats",
+    "simulate",
+    "api_base_url"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "checkpoint_id": {
+      "type": "string",
+      "pattern": "^imp_[a-f0-9]{12}$"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "dry-run",
+        "execute"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "repo_path": {
+      "type": "string"
+    },
+    "repo_id": {
+      "type": "string"
+    },
+    "source_branch": {
+      "type": "string"
+    },
+    "target_ref": {
+      "type": "string"
+    },
+    "source_head": {
+      "type": "string"
+    },
+    "commits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "git_commit",
+          "parent_git_commit",
+          "file_count",
+          "tree_bytes",
+          "status",
+          "mapped_commit_id",
+          "error"
+        ],
+        "properties": {
+          "git_commit": {
+            "type": "string"
+          },
+          "parent_git_commit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tree_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "imported",
+              "failed"
+            ]
+          },
+          "mapped_commit_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "stats": {
+      "type": "object",
+      "required": [
+        "commit_count",
+        "file_count_total",
+        "tree_bytes_total",
+        "imported_commits",
+        "failed_commits",
+        "pending_commits"
+      ],
+      "properties": {
+        "commit_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "file_count_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tree_bytes_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "imported_commits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed_commits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pending_commits": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "simulate": {
+      "type": "boolean"
+    },
+    "api_base_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

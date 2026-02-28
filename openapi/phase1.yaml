@@ -1,0 +1,893 @@
+openapi: 3.1.0
+info:
+  title: Gableton Phase 1 API
+  version: 0.1.0
+  description: |
+    API contract for the Phase 1 Gableton MVP repository platform.
+servers:
+  - url: https://api.gableton.example.com
+    description: Production
+  - url: https://staging-api.gableton.example.com
+    description: Staging
+security:
+  - bearerAuth: []
+tags:
+  - name: Repos
+  - name: Members
+  - name: Objects
+  - name: Commits
+  - name: Refs
+  - name: Pull Requests
+  - name: Sync
+paths:
+  /v1/repos:
+    post:
+      tags: [Repos]
+      operationId: createRepo
+      summary: Create repository
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRepoRequest'
+      responses:
+        '201':
+          description: Repository created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Repo'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/repos/{repoId}:
+    get:
+      tags: [Repos]
+      operationId: getRepo
+      summary: Get repository metadata
+      parameters:
+        - $ref: '#/components/parameters/RepoId'
+      responses:
+        '200':
+          description: Repository metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Repo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/repos/{repoId}/members:
+    post:
+      tags: [Members]
+      operationId: upsertRepoMember
+      summary: Add or update member role
+      parameters:
+        - $ref: '#/components/parameters/RepoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertRepoMemberRequest'
+      responses:
+        '200':
+          description: Member role set
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepoMember'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/repos/{repoId}/objects/existence:
+    post:
+      tags: [Objects]
+      operationId: checkObjectExistence
+      summary: Check which objects are missing from remote storage
+      parameters:
+        - $ref: '#/components/parameters/RepoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ObjectExistenceRequest'
+      responses:
+        '200':
+          description: Missing object lists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObjectExistenceResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/repos/{repoId}/uploads/sign:
+    post:
+      tags: [Objects]
+      operationId: signUploadUrls
+      summary: Get pre-signed upload URLs for missing objects
+      parameters:
+        - $ref: '#/components/parameters/RepoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignUploadsRequest'
+      responses:
+        '200':
+          description: Upload URLs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignUploadsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/repos/{repoId}/commits/stage:
+    post:
+      tags: [Commits]
+      operationId: stageCommit
+      summary: Validate staged commit metadata before finalization
+      parameters:
+        - $ref: '#/components/parameters/RepoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StageCommitRequest'
+      responses:
+        '200':
+          description: Commit can be finalized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StageCommitResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Missing objects or ref race
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StageCommitConflict'
+  /v1/repos/{repoId}/commits/finalize:
+    post:
+      tags: [Commits]
+      operationId: finalizeCommit
+      summary: Finalize commit and persist manifest/commit metadata
+      parameters:
+        - $ref: '#/components/parameters/RepoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinalizeCommitRequest'
+      responses:
+        '201':
+          description: Commit finalized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinalizeCommitResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/repos/{repoId}/refs/{refName}/move:
+    post:
+      tags: [Refs]
+      operationId: moveRef
+      summary: Move branch reference with optimistic concurrency
+      parameters:
+        - $ref: '#/components/parameters/RepoId'
+        - $ref: '#/components/parameters/RefName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoveRefRequest'
+      responses:
+        '200':
+          description: Ref moved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MoveRefResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/repos/{repoId}/pull-requests:
+    post:
+      tags: [Pull Requests]
+      operationId: createPullRequest
+      summary: Create pull request
+      parameters:
+        - $ref: '#/components/parameters/RepoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePullRequestRequest'
+      responses:
+        '201':
+          description: Pull request created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PullRequest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/repos/{repoId}/pull-requests/{pullRequestId}/approve:
+    post:
+      tags: [Pull Requests]
+      operationId: approvePullRequest
+      summary: Approve pull request
+      parameters:
+        - $ref: '#/components/parameters/RepoId'
+        - $ref: '#/components/parameters/PullRequestId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovePullRequestRequest'
+      responses:
+        '200':
+          description: Approval added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PullRequestApproval'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/repos/{repoId}/pull-requests/{pullRequestId}/merge:
+    post:
+      tags: [Pull Requests]
+      operationId: mergePullRequest
+      summary: Merge pull request into target ref
+      parameters:
+        - $ref: '#/components/parameters/RepoId'
+        - $ref: '#/components/parameters/PullRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MergePullRequestRequest'
+      responses:
+        '200':
+          description: Pull request merged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MergePullRequestResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/repos/{repoId}/commits/{commitId}/manifest:
+    get:
+      tags: [Sync]
+      operationId: getCommitManifest
+      summary: Get manifest payload for a commit
+      parameters:
+        - $ref: '#/components/parameters/RepoId'
+        - $ref: '#/components/parameters/CommitId'
+      responses:
+        '200':
+          description: Manifest for commit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Manifest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/repos/{repoId}/downloads/sign:
+    post:
+      tags: [Sync]
+      operationId: signDownloadUrls
+      summary: Get pre-signed download URLs for objects
+      parameters:
+        - $ref: '#/components/parameters/RepoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignDownloadsRequest'
+      responses:
+        '200':
+          description: Download URLs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignDownloadsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    RepoId:
+      name: repoId
+      in: path
+      required: true
+      schema:
+        type: string
+    RefName:
+      name: refName
+      in: path
+      required: true
+      schema:
+        type: string
+    CommitId:
+      name: commitId
+      in: path
+      required: true
+      schema:
+        type: string
+    PullRequestId:
+      name: pullRequestId
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Not enough permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Concurrency or policy conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+    Role:
+      type: string
+      enum: [owner, maintainer, contributor, viewer]
+    Repo:
+      type: object
+      required: [id, name, owner_user_id, default_branch, created_at]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        owner_user_id:
+          type: string
+        default_branch:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    RepoMember:
+      type: object
+      required: [repo_id, user_id, role]
+      properties:
+        repo_id:
+          type: string
+        user_id:
+          type: string
+        role:
+          $ref: '#/components/schemas/Role'
+    CreateRepoRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        default_branch:
+          type: string
+          default: main
+    UpsertRepoMemberRequest:
+      type: object
+      required: [user_id, role]
+      properties:
+        user_id:
+          type: string
+        role:
+          $ref: '#/components/schemas/Role'
+    ObjectExistenceRequest:
+      type: object
+      properties:
+        chunk_hashes:
+          type: array
+          items:
+            type: string
+        blob_hashes:
+          type: array
+          items:
+            type: string
+        manifest_hashes:
+          type: array
+          items:
+            type: string
+      additionalProperties: false
+    ObjectExistenceResponse:
+      type: object
+      required: [missing_chunks, missing_blobs, missing_manifests]
+      properties:
+        missing_chunks:
+          type: array
+          items:
+            type: string
+        missing_blobs:
+          type: array
+          items:
+            type: string
+        missing_manifests:
+          type: array
+          items:
+            type: string
+    ObjectType:
+      type: string
+      enum: [chunk, blob, manifest]
+    UploadObjectRequest:
+      type: object
+      required: [hash, object_type, size_bytes]
+      properties:
+        hash:
+          type: string
+        object_type:
+          $ref: '#/components/schemas/ObjectType'
+        size_bytes:
+          type: integer
+          minimum: 0
+        content_type:
+          type: string
+    SignUploadsRequest:
+      type: object
+      required: [objects]
+      properties:
+        objects:
+          type: array
+          items:
+            $ref: '#/components/schemas/UploadObjectRequest'
+    SignedUrl:
+      type: object
+      required: [hash, object_type, method, url, expires_at]
+      properties:
+        hash:
+          type: string
+        object_type:
+          $ref: '#/components/schemas/ObjectType'
+        method:
+          type: string
+          enum: [PUT, GET]
+        url:
+          type: string
+          format: uri
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        expires_at:
+          type: string
+          format: date-time
+    SignUploadsResponse:
+      type: object
+      required: [uploads]
+      properties:
+        uploads:
+          type: array
+          items:
+            $ref: '#/components/schemas/SignedUrl'
+    StageCommitRequest:
+      type: object
+      required: [ref_name, parent_commit_id, commit_hash, manifest_hash]
+      properties:
+        ref_name:
+          type: string
+        parent_commit_id:
+          type: string
+        expected_ref_head:
+          type: string
+        commit_hash:
+          type: string
+        manifest_hash:
+          type: string
+    StageCommitResponse:
+      type: object
+      required: [staged_commit_token, expires_at]
+      properties:
+        staged_commit_token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+    StageCommitConflict:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum: [missing_objects, ref_race]
+        message:
+          type: string
+        missing_chunks:
+          type: array
+          items:
+            type: string
+        missing_blobs:
+          type: array
+          items:
+            type: string
+        missing_manifests:
+          type: array
+          items:
+            type: string
+    CommitPayload:
+      type: object
+      required:
+        - version
+        - repo_id
+        - parent_commit_ids
+        - author_user_id
+        - author_display
+        - message
+        - manifest_hash
+        - created_client_at
+      properties:
+        version:
+          type: integer
+          enum: [1]
+        repo_id:
+          type: string
+        parent_commit_ids:
+          type: array
+          items:
+            type: string
+        author_user_id:
+          type: string
+        author_display:
+          type: string
+        message:
+          type: string
+        manifest_hash:
+          type: string
+        created_client_at:
+          type: string
+          format: date-time
+        tooling:
+          type: object
+          properties:
+            client_version:
+              type: string
+            ableton_version:
+              type: string
+          additionalProperties: true
+    ManifestFile:
+      type: object
+      required: [path, kind, size, blob_hash]
+      properties:
+        path:
+          type: string
+        kind:
+          type: string
+          enum: [als, audio, midi, other]
+        size:
+          type: integer
+          minimum: 0
+        blob_hash:
+          type: string
+        canonical_hash:
+          type: string
+        chunks:
+          type: array
+          items:
+            type: string
+        codec:
+          type: string
+        volatile_fields_removed:
+          type: array
+          items:
+            type: string
+    PluginFingerprint:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        vendor:
+          type: string
+        version:
+          type: string
+    SampleReference:
+      type: object
+      required: [path]
+      properties:
+        path:
+          type: string
+        licensed:
+          type: string
+    Manifest:
+      type: object
+      required: [version, repo_format, files]
+      properties:
+        version:
+          type: integer
+          enum: [1]
+        repo_format:
+          type: string
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/ManifestFile'
+        plugin_fingerprints:
+          type: array
+          items:
+            $ref: '#/components/schemas/PluginFingerprint'
+        sample_references:
+          type: array
+          items:
+            $ref: '#/components/schemas/SampleReference'
+    FinalizeCommitRequest:
+      type: object
+      required: [staged_commit_token, commit_payload, manifest_payload]
+      properties:
+        staged_commit_token:
+          type: string
+        commit_payload:
+          $ref: '#/components/schemas/CommitPayload'
+        manifest_payload:
+          $ref: '#/components/schemas/Manifest'
+    FinalizeCommitResponse:
+      type: object
+      required: [commit_id, manifest_hash, ref_name, ref_head]
+      properties:
+        commit_id:
+          type: string
+        manifest_hash:
+          type: string
+        ref_name:
+          type: string
+        ref_head:
+          type: string
+    MoveRefRequest:
+      type: object
+      required: [new_commit_id, expected_old_commit_id]
+      properties:
+        new_commit_id:
+          type: string
+        expected_old_commit_id:
+          type: string
+        enforce_fast_forward:
+          type: boolean
+          default: true
+    MoveRefResponse:
+      type: object
+      required: [repo_id, ref_name, previous_commit_id, current_commit_id, fast_forward]
+      properties:
+        repo_id:
+          type: string
+        ref_name:
+          type: string
+        previous_commit_id:
+          type: string
+        current_commit_id:
+          type: string
+        fast_forward:
+          type: boolean
+    PullRequestStatus:
+      type: string
+      enum: [open, merged, closed]
+    PullRequest:
+      type: object
+      required:
+        - id
+        - repo_id
+        - source_ref
+        - target_ref
+        - title
+        - description
+        - status
+        - created_by
+        - created_at
+      properties:
+        id:
+          type: string
+        repo_id:
+          type: string
+        source_ref:
+          type: string
+        target_ref:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/PullRequestStatus'
+        created_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    CreatePullRequestRequest:
+      type: object
+      required: [source_ref, target_ref, title]
+      properties:
+        source_ref:
+          type: string
+        target_ref:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+    ApprovePullRequestRequest:
+      type: object
+      properties:
+        comment:
+          type: string
+    PullRequestApproval:
+      type: object
+      required: [pull_request_id, approved_by, approved_at]
+      properties:
+        pull_request_id:
+          type: string
+        approved_by:
+          type: string
+        comment:
+          type: string
+        approved_at:
+          type: string
+          format: date-time
+    MergePullRequestRequest:
+      type: object
+      required: [expected_target_head]
+      properties:
+        expected_target_head:
+          type: string
+        strategy:
+          type: string
+          enum: [fast-forward]
+          default: fast-forward
+    MergePullRequestResponse:
+      type: object
+      required: [pull_request_id, merged_commit_id, target_ref, target_head]
+      properties:
+        pull_request_id:
+          type: string
+        merged_commit_id:
+          type: string
+        target_ref:
+          type: string
+        target_head:
+          type: string
+        merged_at:
+          type: string
+          format: date-time
+    DownloadObjectRequest:
+      type: object
+      required: [hash, object_type]
+      properties:
+        hash:
+          type: string
+        object_type:
+          $ref: '#/components/schemas/ObjectType'
+    SignDownloadsRequest:
+      type: object
+      required: [objects]
+      properties:
+        objects:
+          type: array
+          items:
+            $ref: '#/components/schemas/DownloadObjectRequest'
+    SignDownloadsResponse:
+      type: object
+      required: [downloads]
+      properties:
+        downloads:
+          type: array
+          items:
+            $ref: '#/components/schemas/SignedUrl'
