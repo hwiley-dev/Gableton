@@ -14,3 +14,14 @@ export interface AppRoute {
   shell: AppShellMode;
   modal?: boolean;
 }
+
+export interface AppRouteMatch {
+  route: AppRoute;
+  pathname: string;
+  params: Record<string, string>;
+}
+
+export interface NavigateOptions {
+  replace?: boolean;
+  modal?: boolean;
+}

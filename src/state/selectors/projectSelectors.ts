@@ -35,7 +35,7 @@ export function selectHeadlineStatus(state: ProjectMachineState): HeadlineStatus
     return "Review required";
   }
   if (state.localVersion === "saved_unpublished") {
-    return "Ready to publish";
+    return "Version saved locally";
   }
   return "Up to date";
 }
@@ -76,8 +76,7 @@ export function selectUpdateEnabled(state: ProjectMachineState): boolean {
   return (
     state.sync === "update_available" &&
     state.mutationLock === "unlocked" &&
-    state.localVersion !== "dirty" &&
-    state.sync !== "updating"
+    state.localVersion !== "dirty"
   );
 }
 

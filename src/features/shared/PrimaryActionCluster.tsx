@@ -1,3 +1,4 @@
+import { useAppRouter } from "../../app/router";
 import { useProjectStateMachine } from "../../state/project-machine/provider";
 import {
   selectPublishBlockingReason,
@@ -28,6 +29,8 @@ function ActionButton({
 
 export function PrimaryActionCluster() {
   const { state, commands } = useProjectStateMachine();
+  const { navigate } = useAppRouter();
+  const projectPathBase = `/projects/${state.context.projectId}`;
 
   return (
     <div style={{ display: "flex", gap: 8 }}>
@@ -35,24 +38,26 @@ export function PrimaryActionCluster() {
         label="Save version"
         enabled={selectSaveVersionEnabled(state)}
         title={selectSaveVersionBlockingReason(state)}
-        onClick={commands.openSaveVersionModal}
+        onClick={async () => {
+          const result = await commands.openSaveVersionModal();
+          if (result.ok) {
+            navigate(`${projectPathBase}/save-version`, { modal: true });
+          }
+        }}
       />
       <ActionButton
         label="Publish changes"
         enabled={selectPublishEnabled(state)}
         title={selectPublishBlockingReason(state)}
-        onClick={() =>
-          commands.startPublish({
-            targetLine: state.context.activeLine,
-            title: "Draft publish from scaffold"
-          })
-        }
+        onClick={() => navigate(`${projectPathBase}/publish`, { modal: true })}
       />
       <ActionButton
         label="Update project"
         enabled={selectUpdateEnabled(state)}
         title={selectUpdateBlockingReason(state)}
-        onClick={commands.startUpdateProject}
+        onClick={async () => {
+          await commands.startUpdateProject();
+        }}
       />
     </div>
   );

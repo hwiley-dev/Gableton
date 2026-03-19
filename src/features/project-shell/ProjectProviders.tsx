@@ -1,6 +1,10 @@
 import type { PropsWithChildren } from "react";
 import { ProjectStateMachineProvider } from "../../state/project-machine/provider";
 
-export function ProjectProviders({ children }: PropsWithChildren) {
-  return <ProjectStateMachineProvider>{children}</ProjectStateMachineProvider>;
+interface ProjectProvidersProps extends PropsWithChildren {
+  projectId: string;
+}
+
+export function ProjectProviders({ children, projectId }: ProjectProvidersProps) {
+  return <ProjectStateMachineProvider projectId={projectId}>{children}</ProjectStateMachineProvider>;
 }

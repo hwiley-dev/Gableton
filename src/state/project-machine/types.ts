@@ -91,12 +91,13 @@ export interface PublishPayload {
 }
 
 export interface ProjectMachineCommands {
-  openSaveVersionModal: () => void;
-  confirmSaveVersion: (payload: SaveVersionPayload) => void;
-  startPublish: (payload: PublishPayload) => void;
-  startUpdateProject: () => void;
+  openSaveVersionModal: () => Promise<{ ok: boolean; reason?: string }>;
+  cancelSaveVersionModal: () => void;
+  confirmSaveVersion: (payload: SaveVersionPayload) => Promise<{ ok: boolean; reason?: string }>;
+  startPublish: (payload: PublishPayload) => Promise<{ ok: boolean; reason?: string }>;
+  startUpdateProject: () => Promise<{ ok: boolean; reason?: string }>;
   retryScan: () => void;
-  openConflictResolution: () => void;
+  openConflictResolution: () => Promise<{ ok: boolean }>;
 }
 
 export interface ProjectMachineValue {
@@ -104,51 +105,72 @@ export interface ProjectMachineValue {
   commands: ProjectMachineCommands;
 }
 
-export const initialProjectMachineState: ProjectMachineState = {
-  root: "ready",
-  scan: "idle",
-  localVersion: "dirty",
-  sync: "update_available",
-  publish: "idle",
-  environment: "warning",
-  mutationLock: "unlocked",
-  context: {
-    workspacePath: "/Users/example/Music/Neon Horizon",
-    projectId: "project_neon_horizon",
+const projectPresets: Record<string, { projectName: string; workspacePath: string; activeLine: string }> = {
+  project_neon_horizon: {
     projectName: "Neon Horizon",
-    workspaceName: "Studio MacBook",
-    activeLine: "Main",
-    workspaceBaseCommitId: "commit:base",
-    remoteHeadCommitId: "commit:remote",
-    latestSavedLocalVersionId: undefined,
-    latestPublishedVersionId: undefined,
-    activeChangeRequestId: undefined,
-    scanRevision: 1,
-    hasUnsavedLocalChanges: true,
-    hasSavedUnpublishedVersion: false,
-    hasUpdateAvailable: true,
-    environmentWarnings: [
-      {
-        id: "warn_plugin_1",
-        kind: "plugin",
-        severity: "warning",
-        message: "1 plugin is missing on this machine."
-      }
-    ],
-    environmentBlocks: [],
-    overlapRisk: false,
-    abletonOpen: false,
-    workspaceSummary: {
-      tracksChanged: 3,
-      audioFilesAdded: 2,
-      automationChanged: true,
-      samplesMissing: 0
-    },
-    openChangeRequest: {
-      id: "cr_1",
-      title: "Add bridge synth textures",
-      status: "open",
-      approvals: 0
-    }
+    workspacePath: "/Users/example/Music/Neon Horizon",
+    activeLine: "maya-bridge-textures"
+  },
+  project_tape_bloom: {
+    projectName: "Tape Bloom",
+    workspacePath: "/Users/example/Music/Tape Bloom",
+    activeLine: "hunter-tape-pass"
   }
 };
+
+export function createInitialProjectMachineState(projectId: string): ProjectMachineState {
+  const preset = projectPresets[projectId] ?? {
+    projectName: "Untitled Project",
+    workspacePath: `/Users/example/Music/${projectId}`,
+    activeLine: `${projectId}-workline`
+  };
+
+  return {
+    root: "ready",
+    scan: "idle",
+    localVersion: "dirty",
+    sync: "update_available",
+    publish: "idle",
+    environment: "warning",
+    mutationLock: "unlocked",
+    context: {
+      workspacePath: preset.workspacePath,
+      projectId,
+      projectName: preset.projectName,
+      workspaceName: "Studio MacBook",
+      activeLine: preset.activeLine,
+      workspaceBaseCommitId: "commit:base",
+      remoteHeadCommitId: "commit:remote",
+      latestSavedLocalVersionId: undefined,
+      latestPublishedVersionId: undefined,
+      activeChangeRequestId: undefined,
+      scanRevision: 1,
+      hasUnsavedLocalChanges: true,
+      hasSavedUnpublishedVersion: false,
+      hasUpdateAvailable: true,
+      environmentWarnings: [
+        {
+          id: "warn_plugin_1",
+          kind: "plugin",
+          severity: "warning",
+          message: "1 plugin is missing on this machine."
+        }
+      ],
+      environmentBlocks: [],
+      overlapRisk: false,
+      abletonOpen: false,
+      workspaceSummary: {
+        tracksChanged: 3,
+        audioFilesAdded: 2,
+        automationChanged: true,
+        samplesMissing: 0
+      },
+      openChangeRequest: {
+        id: "cr_1",
+        title: "Add bridge synth textures",
+        status: "open",
+        approvals: 0
+      }
+    }
+  };
+}
