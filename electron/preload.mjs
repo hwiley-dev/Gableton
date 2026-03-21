@@ -1,0 +1,24 @@
+import { contextBridge, ipcRenderer } from "electron";
+
+contextBridge.exposeInMainWorld("gabletonRuntimeConfig", {
+  apiBaseUrl: process.env.GABLETON_API_BASE_URL || ""
+});
+
+contextBridge.exposeInMainWorld("gabletonDesktopBridge", {
+  pickFolder: () => ipcRenderer.invoke("gableton:pick-folder"),
+  revealInFinder: (targetPath) => ipcRenderer.invoke("gableton:reveal-in-finder", targetPath),
+  openAbletonProject: (targetPath) => ipcRenderer.invoke("gableton:open-ableton-project", targetPath),
+  watchWorkspace: (targetPath) => ipcRenderer.invoke("gableton:watch-workspace", targetPath),
+  getWorkspaceSnapshot: (projectId) => ipcRenderer.invoke("gableton:get-workspace-snapshot", projectId),
+  getEnvironmentDiagnostics: (projectId) => ipcRenderer.invoke("gableton:get-environment-diagnostics", projectId),
+  startLocalScan: (projectId) => ipcRenderer.invoke("gableton:start-local-scan", projectId),
+  saveLocalVersion: (input) => ipcRenderer.invoke("gableton:save-local-version", input),
+  preparePublish: (input) => ipcRenderer.invoke("gableton:prepare-publish", input),
+  uploadPreparedObjects: (projectId, response) =>
+    ipcRenderer.invoke("gableton:upload-prepared-objects", projectId, response),
+  downloadSignedObjects: (projectId, response) =>
+    ipcRenderer.invoke("gableton:download-signed-objects", projectId, response),
+  applyWorkspaceMutation: (projectId, manifest) =>
+    ipcRenderer.invoke("gableton:apply-workspace-mutation", projectId, manifest),
+  detectAbletonOpen: (projectId) => ipcRenderer.invoke("gableton:detect-ableton-open", projectId)
+});

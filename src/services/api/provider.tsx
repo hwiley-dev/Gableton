@@ -6,7 +6,9 @@ const ApiClientContext = createContext<ApiClient | null>(null);
 
 export function ApiClientProvider({ children }: PropsWithChildren) {
   const client = useMemo<ApiClient>(() => {
-    const baseUrl = import.meta.env.VITE_GABLETON_API_BASE_URL?.trim();
+    const runtimeBaseUrl =
+      typeof window !== "undefined" ? window.gabletonRuntimeConfig?.apiBaseUrl?.trim() : undefined;
+    const baseUrl = runtimeBaseUrl || import.meta.env.VITE_GABLETON_API_BASE_URL?.trim();
     const token = import.meta.env.VITE_GABLETON_API_TOKEN?.trim();
 
     if (baseUrl) {

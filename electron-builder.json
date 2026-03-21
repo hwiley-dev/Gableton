@@ -1,0 +1,20 @@
+{
+  "appId": "com.gableton.desktop",
+  "productName": "Gableton",
+  "directories": {
+    "output": "release"
+  },
+  "asar": true,
+  "files": [
+    "dist/**/*",
+    "electron/**/*",
+    "package.json"
+  ],
+  "mac": {
+    "category": "public.app-category.music",
+    "target": [
+      "dmg"
+    ],
+    "artifactName": "Gableton-${version}-${arch}.${ext}"
+  }
+}
