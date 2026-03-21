@@ -9,6 +9,7 @@ import type {
   StageCommitRequest,
   UploadObjectRequest
 } from "../api/types";
+import type { AuthSession, OAuthSignInRequest } from "../auth/types";
 
 export interface SavedLocalVersionRecord {
   id: string;
@@ -52,6 +53,8 @@ export interface PreparePublishInput {
   parentCommitId: string;
   expectedRefHead: string;
   savedVersionId: string;
+  authorUserId: string;
+  authorDisplay: string;
 }
 
 export interface PreparePublishResult {
@@ -63,6 +66,9 @@ export interface PreparePublishResult {
 }
 
 export interface DesktopBridge {
+  restoreAuthSession(apiBaseUrl: string): Promise<AuthSession | null>;
+  signIn(input: OAuthSignInRequest): Promise<AuthSession>;
+  signOut(apiBaseUrl: string): Promise<void>;
   pickFolder(): Promise<string | null>;
   getProjectWorkspace(projectId: string): Promise<string | null>;
   setProjectWorkspace(projectId: string, workspacePath: string): Promise<void>;

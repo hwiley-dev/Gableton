@@ -5,6 +5,11 @@ import { createHash, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
+import {
+  restoreStoredSession,
+  signInWithSystemBrowser,
+  signOutStoredSession
+} from "./auth.mjs";
 
 const BRIDGE_STATE_FILENAME = "bridge-state.json";
 const AUDIO_EXTENSIONS = new Set([".wav", ".aif", ".aiff", ".flac", ".mp3", ".m4a"]);
@@ -514,6 +519,18 @@ async function downloadSignedObjects(projectId, response) {
 }
 
 export function registerBridgeHandlers() {
+  ipcMain.handle("gableton:auth:restore-session", async (_event, apiBaseUrl) => {
+    return await restoreStoredSession(apiBaseUrl);
+  });
+
+  ipcMain.handle("gableton:auth:sign-in", async (_event, input) => {
+    return await signInWithSystemBrowser(input);
+  });
+
+  ipcMain.handle("gableton:auth:sign-out", async (_event, apiBaseUrl) => {
+    await signOutStoredSession(apiBaseUrl);
+  });
+
   ipcMain.handle("gableton:pick-folder", async () => {
     const result = await dialog.showOpenDialog({
       properties: ["openDirectory"],
@@ -653,8 +670,8 @@ export function registerBridgeHandlers() {
           version: 1,
           repoId: input.repoId,
           parentCommitIds: [input.parentCommitId],
-          authorUserId: "current_user",
-          authorDisplay: "Current User",
+          authorUserId: input.authorUserId,
+          authorDisplay: input.authorDisplay,
           message: title,
           manifestHash,
           createdClientAt: isoNow(),

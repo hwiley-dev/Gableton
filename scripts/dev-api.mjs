@@ -1,11 +1,14 @@
 import { createServer } from "node:http";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 const PORT = Number(process.env.GABLETON_API_PORT || 8788);
 const HOST = process.env.GABLETON_API_HOST || "127.0.0.1";
 const ORIGIN = `http://${HOST}:${PORT}`;
 
 const objectStore = new Map();
+const accessSessions = new Map();
+const refreshSessions = new Map();
+const authCodes = new Map();
 let commitCounter = 1;
 let changeRequestCounter = 1;
 
@@ -13,8 +16,28 @@ function isoNow() {
   return new Date().toISOString();
 }
 
+function isoLater(hours) {
+  return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+}
+
 function makeHash(seed) {
   return `sha256:${seed.replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase()}`;
+}
+
+function makeToken(prefix) {
+  return `${prefix}_${randomUUID()}`;
+}
+
+function toBase64Url(value) {
+  return Buffer.from(value)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function createPkceChallenge(verifier) {
+  return toBase64Url(createHash("sha256").update(verifier).digest());
 }
 
 function manifestForRepo(repoId) {
@@ -82,6 +105,101 @@ const repos = new Map([
   ["project_neon_horizon", createRepo("project_neon_horizon", "Neon Horizon")],
   ["project_tape_bloom", createRepo("project_tape_bloom", "Tape Bloom")]
 ]);
+
+function serializeUser(user) {
+  return {
+    id: user.id,
+    email: user.email,
+    display_name: user.displayName
+  };
+}
+
+function buildUserFromEmail(email) {
+  if (typeof email !== "string" || !email.trim()) {
+    return null;
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const displayName =
+    normalizedEmail === "hunter@gableton.dev"
+      ? "Hunter Wiley"
+      : normalizedEmail === "maya@gableton.dev"
+        ? "Maya"
+        : normalizedEmail.split("@")[0]
+            .split(/[._-]/g)
+            .filter(Boolean)
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(" ") || "Gableton User";
+
+  return {
+    id: `user_${normalizedEmail.replace(/[^a-z0-9]+/g, "_")}`,
+    email: normalizedEmail,
+    displayName
+  };
+}
+
+function resolveLoginUser(email, password) {
+  if (typeof password !== "string" || !password.trim() || password !== "gableton-dev") {
+    return null;
+  }
+
+  return buildUserFromEmail(email);
+}
+
+function issueSession(user, refreshToken = makeToken("refresh")) {
+  const accessToken = makeToken("access");
+  const session = {
+    user,
+    refreshToken,
+    accessToken,
+    expiresAt: isoLater(1)
+  };
+
+  accessSessions.set(accessToken, session);
+  refreshSessions.set(refreshToken, { user });
+  return session;
+}
+
+function sendSession(response, session) {
+  sendJson(response, 200, {
+    user: serializeUser(session.user),
+    access_token: session.accessToken,
+    refresh_token: session.refreshToken,
+    expires_at: session.expiresAt
+  });
+}
+
+function beginAuthorizationCode(user, redirectUri, codeChallenge) {
+  const code = makeToken("code");
+  authCodes.set(code, {
+    user,
+    redirectUri,
+    codeChallenge
+  });
+  return code;
+}
+
+function getAuthSession(request, response) {
+  const authorization = request.headers.authorization;
+  const bearerToken =
+    typeof authorization === "string" && authorization.startsWith("Bearer ")
+      ? authorization.slice("Bearer ".length).trim()
+      : "";
+
+  const session = accessSessions.get(bearerToken);
+  if (!session) {
+    sendJson(response, 401, { error: "Authentication required." });
+    return undefined;
+  }
+
+  if (new Date(session.expiresAt).getTime() <= Date.now()) {
+    accessSessions.delete(bearerToken);
+    sendJson(response, 401, { error: "Access token expired." });
+    return undefined;
+  }
+
+  return session;
+}
 
 function withCorsHeaders(response) {
   response.setHeader("Access-Control-Allow-Origin", "*");
@@ -167,7 +285,145 @@ const server = createServer(async (request, response) => {
     return;
   }
 
+  if (method === "GET" && pathname === "/v1/oauth/authorize") {
+    const redirectUri = url.searchParams.get("redirect_uri") || "";
+    const state = url.searchParams.get("state") || "";
+    const codeChallenge = url.searchParams.get("code_challenge") || "";
+    const loginHint = url.searchParams.get("login_hint");
+
+    if (!redirectUri || !state || !codeChallenge) {
+      sendJson(response, 400, { error: "Missing OAuth authorize parameters." });
+      return;
+    }
+
+    const hintedUser = loginHint ? buildUserFromEmail(loginHint) : null;
+    if (hintedUser) {
+      const redirectTarget = new URL(redirectUri);
+      redirectTarget.searchParams.set("code", beginAuthorizationCode(hintedUser, redirectUri, codeChallenge));
+      redirectTarget.searchParams.set("state", state);
+      response.writeHead(302, { Location: redirectTarget.toString() });
+      response.end();
+      return;
+    }
+
+    const hunterLink = new URL(`${ORIGIN}/v1/oauth/approve`);
+    hunterLink.searchParams.set("redirect_uri", redirectUri);
+    hunterLink.searchParams.set("state", state);
+    hunterLink.searchParams.set("code_challenge", codeChallenge);
+    hunterLink.searchParams.set("account", "hunter@gableton.dev");
+
+    const mayaLink = new URL(`${ORIGIN}/v1/oauth/approve`);
+    mayaLink.searchParams.set("redirect_uri", redirectUri);
+    mayaLink.searchParams.set("state", state);
+    mayaLink.searchParams.set("code_challenge", codeChallenge);
+    mayaLink.searchParams.set("account", "maya@gableton.dev");
+
+    withCorsHeaders(response);
+    response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    response.end(`<!doctype html>
+<html>
+  <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:32px;background:#f3f4f6;color:#111827;">
+    <div style="max-width:520px;margin:0 auto;padding:32px;background:#fff;border:1px solid #d7d7d7;border-radius:12px;">
+      <h1 style="margin-top:0;">Sign in to Gableton</h1>
+      <p>Select a development account to continue the desktop OAuth flow.</p>
+      <div style="display:grid;gap:12px;margin-top:24px;">
+        <a href="${hunterLink.toString()}" style="padding:12px 14px;border-radius:8px;background:#111827;color:#fff;text-decoration:none;">Continue as Hunter Wiley</a>
+        <a href="${mayaLink.toString()}" style="padding:12px 14px;border-radius:8px;background:#fff;color:#111827;text-decoration:none;border:1px solid #d7d7d7;">Continue as Maya</a>
+      </div>
+    </div>
+  </body>
+</html>`);
+    return;
+  }
+
+  if (method === "GET" && pathname === "/v1/oauth/approve") {
+    const redirectUri = url.searchParams.get("redirect_uri") || "";
+    const state = url.searchParams.get("state") || "";
+    const codeChallenge = url.searchParams.get("code_challenge") || "";
+    const account = url.searchParams.get("account") || "";
+    const user = buildUserFromEmail(account);
+
+    if (!redirectUri || !state || !codeChallenge || !user) {
+      sendJson(response, 400, { error: "Invalid OAuth approval request." });
+      return;
+    }
+
+    const redirectTarget = new URL(redirectUri);
+    redirectTarget.searchParams.set("code", beginAuthorizationCode(user, redirectUri, codeChallenge));
+    redirectTarget.searchParams.set("state", state);
+    response.writeHead(302, { Location: redirectTarget.toString() });
+    response.end();
+    return;
+  }
+
+  if (method === "POST" && pathname === "/v1/oauth/token") {
+    const body = await readJson(request);
+    if (body.grant_type !== "authorization_code") {
+      sendJson(response, 400, { error: "Unsupported OAuth grant type." });
+      return;
+    }
+
+    const code = typeof body.code === "string" ? body.code : "";
+    const redirectUri = typeof body.redirect_uri === "string" ? body.redirect_uri : "";
+    const codeVerifier = typeof body.code_verifier === "string" ? body.code_verifier : "";
+    const record = authCodes.get(code);
+
+    if (!record || record.redirectUri !== redirectUri) {
+      sendJson(response, 400, { error: "OAuth code is invalid." });
+      return;
+    }
+
+    if (createPkceChallenge(codeVerifier) !== record.codeChallenge) {
+      sendJson(response, 400, { error: "PKCE verification failed." });
+      return;
+    }
+
+    authCodes.delete(code);
+    sendSession(response, issueSession(record.user));
+    return;
+  }
+
+  if (method === "POST" && pathname === "/v1/auth/login") {
+    const body = await readJson(request);
+    const user = resolveLoginUser(body.email, body.password);
+    if (!user) {
+      sendJson(response, 401, { error: "Invalid email or password." });
+      return;
+    }
+    sendSession(response, issueSession(user));
+    return;
+  }
+
+  if (method === "POST" && pathname === "/v1/auth/refresh") {
+    const body = await readJson(request);
+    const refreshToken = typeof body.refresh_token === "string" ? body.refresh_token : "";
+    const record = refreshSessions.get(refreshToken);
+    if (!record) {
+      sendJson(response, 401, { error: "Refresh token is invalid." });
+      return;
+    }
+    sendSession(response, issueSession(record.user, refreshToken));
+    return;
+  }
+
+  if (method === "POST" && pathname === "/v1/auth/logout") {
+    const body = await readJson(request);
+    const refreshToken = typeof body.refresh_token === "string" ? body.refresh_token : "";
+    refreshSessions.delete(refreshToken);
+    for (const [accessToken, session] of accessSessions.entries()) {
+      if (session.refreshToken === refreshToken) {
+        accessSessions.delete(accessToken);
+      }
+    }
+    sendJson(response, 200, { status: "signed_out" });
+    return;
+  }
+
   if (method === "GET" && pathname === "/v1/repos") {
+    const authSession = getAuthSession(request, response);
+    if (!authSession) {
+      return;
+    }
     sendJson(response, 200, {
       repos: Array.from(repos.values()).map((repo) => ({
         id: repo.id,
@@ -180,6 +436,10 @@ const server = createServer(async (request, response) => {
 
   let params = matchPath(pathname, "/v1/repos/:repoId/versions");
   if (method === "GET" && params) {
+    const authSession = getAuthSession(request, response);
+    if (!authSession) {
+      return;
+    }
     const repo = getRepo(params.repoId, response);
     if (!repo) {
       return;
@@ -199,6 +459,10 @@ const server = createServer(async (request, response) => {
 
   params = matchPath(pathname, "/v1/repos/:repoId/pull-requests");
   if (method === "GET" && params) {
+    const authSession = getAuthSession(request, response);
+    if (!authSession) {
+      return;
+    }
     const repo = getRepo(params.repoId, response);
     if (!repo) {
       return;
@@ -209,6 +473,10 @@ const server = createServer(async (request, response) => {
 
   params = matchPath(pathname, "/v1/repos/:repoId/objects/existence");
   if (method === "POST" && params) {
+    const authSession = getAuthSession(request, response);
+    if (!authSession) {
+      return;
+    }
     const repo = getRepo(params.repoId, response);
     if (!repo) {
       return;
@@ -227,6 +495,10 @@ const server = createServer(async (request, response) => {
 
   params = matchPath(pathname, "/v1/repos/:repoId/uploads/sign");
   if (method === "POST" && params) {
+    const authSession = getAuthSession(request, response);
+    if (!authSession) {
+      return;
+    }
     const repo = getRepo(params.repoId, response);
     if (!repo) {
       return;
@@ -264,6 +536,10 @@ const server = createServer(async (request, response) => {
 
   params = matchPath(pathname, "/v1/repos/:repoId/commits/stage");
   if (method === "POST" && params) {
+    const authSession = getAuthSession(request, response);
+    if (!authSession) {
+      return;
+    }
     const repo = getRepo(params.repoId, response);
     if (!repo) {
       return;
@@ -283,6 +559,10 @@ const server = createServer(async (request, response) => {
 
   params = matchPath(pathname, "/v1/repos/:repoId/commits/finalize");
   if (method === "POST" && params) {
+    const authSession = getAuthSession(request, response);
+    if (!authSession) {
+      return;
+    }
     const repo = getRepo(params.repoId, response);
     if (!repo) {
       return;
@@ -313,7 +593,7 @@ const server = createServer(async (request, response) => {
     repo.versions.unshift({
       id: commitId,
       title: typeof commitPayload.message === "string" ? commitPayload.message : "Untitled publish",
-      author: typeof commitPayload.authorDisplay === "string" ? commitPayload.authorDisplay : "Current User",
+      author: authSession.user.displayName,
       createdAt: typeof commitPayload.createdClientAt === "string" ? commitPayload.createdClientAt : isoNow(),
       state: "published",
       summary: "Published through local Phase 1 API"
@@ -330,6 +610,10 @@ const server = createServer(async (request, response) => {
 
   params = matchPath(pathname, "/v1/repos/:repoId/pull-requests");
   if (method === "POST" && params) {
+    const authSession = getAuthSession(request, response);
+    if (!authSession) {
+      return;
+    }
     const repo = getRepo(params.repoId, response);
     if (!repo) {
       return;
@@ -338,7 +622,8 @@ const server = createServer(async (request, response) => {
     const record = {
       id: `cr_${changeRequestCounter += 1}`,
       title: typeof body.title === "string" ? body.title : "Untitled change request",
-      author: "Current User",
+      author: authSession.user.displayName,
+      created_by: authSession.user.displayName,
       status: "open",
       approvals: 0
     };
@@ -349,6 +634,10 @@ const server = createServer(async (request, response) => {
 
   params = matchPath(pathname, "/v1/repos/:repoId/commits/:commitId/manifest");
   if (method === "GET" && params) {
+    const authSession = getAuthSession(request, response);
+    if (!authSession) {
+      return;
+    }
     const repo = getRepo(params.repoId, response);
     if (!repo) {
       return;
@@ -364,6 +653,10 @@ const server = createServer(async (request, response) => {
 
   params = matchPath(pathname, "/v1/repos/:repoId/downloads/sign");
   if (method === "POST" && params) {
+    const authSession = getAuthSession(request, response);
+    if (!authSession) {
+      return;
+    }
     const repo = getRepo(params.repoId, response);
     if (!repo) {
       return;

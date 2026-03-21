@@ -22,6 +22,7 @@ import {
 } from "../selectors/projectSelectors";
 import { useApiClient } from "../../services/api/provider";
 import { useDesktopBridge } from "../../services/desktop-bridge/provider";
+import { useAuthSession } from "../../services/auth/provider";
 import type {
   BridgeDiagnostic,
   WorkspaceInventory as BridgeWorkspaceInventory
@@ -94,6 +95,7 @@ export function ProjectStateMachineProvider({
 }: ProjectStateMachineProviderProps) {
   const apiClient = useApiClient();
   const desktopBridge = useDesktopBridge();
+  const { session } = useAuthSession();
   const [state, setState] = useState<ProjectMachineState>(() => createInitialProjectMachineState(projectId));
 
   useEffect(() => {
@@ -268,6 +270,9 @@ export function ProjectStateMachineProvider({
           if (!state.context.latestSavedLocalVersionId) {
             return { ok: false, reason: "No saved version is available to publish." };
           }
+          if (!session) {
+            return { ok: false, reason: "Sign in again before publishing changes." };
+          }
 
           setState((current) => ({
             ...current,
@@ -283,7 +288,9 @@ export function ProjectStateMachineProvider({
               description: payload.description,
               parentCommitId: state.context.workspaceBaseCommitId,
               expectedRefHead: state.context.remoteHeadCommitId,
-              savedVersionId: state.context.latestSavedLocalVersionId
+              savedVersionId: state.context.latestSavedLocalVersionId,
+              authorUserId: session.user.id,
+              authorDisplay: session.user.displayName
             });
 
             const existence = await apiClient.checkObjectExistence(
@@ -409,7 +416,7 @@ export function ProjectStateMachineProvider({
         }
       }
     };
-  }, [apiClient, desktopBridge, projectId, state]);
+  }, [apiClient, desktopBridge, projectId, session, state]);
 
   return <ProjectMachineContext.Provider value={value}>{children}</ProjectMachineContext.Provider>;
 }

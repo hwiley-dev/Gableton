@@ -5,6 +5,9 @@ contextBridge.exposeInMainWorld("gabletonRuntimeConfig", {
 });
 
 contextBridge.exposeInMainWorld("gabletonDesktopBridge", {
+  restoreAuthSession: (apiBaseUrl) => ipcRenderer.invoke("gableton:auth:restore-session", apiBaseUrl),
+  signIn: (input) => ipcRenderer.invoke("gableton:auth:sign-in", input),
+  signOut: (apiBaseUrl) => ipcRenderer.invoke("gableton:auth:sign-out", apiBaseUrl),
   pickFolder: () => ipcRenderer.invoke("gableton:pick-folder"),
   getProjectWorkspace: (projectId) => ipcRenderer.invoke("gableton:get-project-workspace", projectId),
   setProjectWorkspace: (projectId, workspacePath) =>

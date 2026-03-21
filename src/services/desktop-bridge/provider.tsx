@@ -1,4 +1,5 @@
 import { createContext, useContext, type PropsWithChildren } from "react";
+import type { AuthSession, OAuthSignInRequest } from "../auth/types";
 import type {
   DesktopBridge,
   PreparePublishInput,
@@ -23,6 +24,7 @@ function makeHash(seed: string): string {
 }
 
 interface DemoBridgeState {
+  authSession?: AuthSession;
   workspacePath: string | null;
   versions: SavedLocalVersionRecord[];
   uploads: Record<string, string>;
@@ -91,6 +93,25 @@ function buildDemoInventory(projectId: string): WorkspaceInventory {
 }
 
 const demoBridge: DesktopBridge = {
+  async restoreAuthSession(_apiBaseUrl: string) {
+    return demoState.get("__auth__")?.authSession ?? null;
+  },
+  async signIn(input: OAuthSignInRequest) {
+    const authSession: AuthSession = {
+      user: {
+        id: "user_demo_browser_oauth",
+        email: input.loginHint || "browser-oauth@gableton.dev",
+        displayName: "Browser OAuth User"
+      },
+      accessToken: `demo_access_${Math.random().toString(36).slice(2, 10)}`,
+      accessTokenExpiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+    };
+    demoState.set("__auth__", { ...readState("__auth__"), authSession });
+    return authSession;
+  },
+  async signOut(_apiBaseUrl: string) {
+    demoState.set("__auth__", { ...readState("__auth__"), authSession: undefined });
+  },
   async pickFolder() {
     if (typeof window === "undefined") {
       return null;
@@ -173,8 +194,8 @@ const demoBridge: DesktopBridge = {
       version: 1,
       repoId: input.repoId,
       parentCommitIds: [input.parentCommitId],
-      authorUserId: "current_user",
-      authorDisplay: "Current User",
+      authorUserId: input.authorUserId,
+      authorDisplay: input.authorDisplay,
       message: normalizedTitle,
       manifestHash,
       createdClientAt: isoNow(),

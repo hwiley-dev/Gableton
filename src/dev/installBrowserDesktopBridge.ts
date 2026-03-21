@@ -1,3 +1,4 @@
+import type { AuthSession, OAuthSignInRequest } from "../services/auth/types";
 import type {
   BridgeDiagnostic,
   DesktopBridge,
@@ -6,6 +7,7 @@ import type {
 import type { ManifestRecord, SignDownloadsResponse, SignUploadsResponse } from "../services/api/types";
 
 const STORAGE_PREFIX = "gableton:desktop-bridge";
+const AUTH_STORAGE_KEY = `${STORAGE_PREFIX}:auth`;
 
 function storageKey(projectId: string): string {
   return `${STORAGE_PREFIX}:${projectId}`;
@@ -46,6 +48,37 @@ interface BrowserBridgeState {
   lastInventory?: WorkspaceInventory;
 }
 
+interface StoredAuthSession {
+  apiBaseUrl: string;
+  authSession: AuthSession;
+  refreshToken: string;
+}
+
+function createRandomString(length: number): string {
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+}
+
+function toBase64Url(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (const value of bytes) {
+    binary += String.fromCharCode(value);
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+async function createPkcePair(): Promise<{ verifier: string; challenge: string }> {
+  const verifier = createRandomString(48);
+  const encoded = new TextEncoder().encode(verifier);
+  const digest = await crypto.subtle.digest("SHA-256", encoded);
+  return {
+    verifier,
+    challenge: toBase64Url(digest)
+  };
+}
+
 function readState(projectId: string): BrowserBridgeState {
   const raw = window.localStorage.getItem(storageKey(projectId));
   if (!raw) {
@@ -79,6 +112,130 @@ function readState(projectId: string): BrowserBridgeState {
 
 function writeState(projectId: string, state: BrowserBridgeState): void {
   window.localStorage.setItem(storageKey(projectId), JSON.stringify(state));
+}
+
+function readStoredAuthSession(): StoredAuthSession | null {
+  const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<StoredAuthSession>;
+    if (
+      typeof parsed.apiBaseUrl === "string" &&
+      parsed.authSession &&
+      typeof parsed.refreshToken === "string"
+    ) {
+      return parsed as StoredAuthSession;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function writeStoredAuthSession(session: StoredAuthSession): void {
+  window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+}
+
+function clearStoredAuthSession(): void {
+  window.localStorage.removeItem(AUTH_STORAGE_KEY);
+}
+
+async function readJsonResponse(response: Response): Promise<Record<string, unknown>> {
+  const payload = (await response.json()) as Record<string, unknown>;
+  if (!response.ok) {
+    const message =
+      typeof payload.error === "string"
+        ? payload.error
+        : `Auth request failed with status ${response.status}.`;
+    throw new Error(message);
+  }
+  return payload;
+}
+
+function mapAuthSession(payload: Record<string, unknown>): {
+  session: AuthSession;
+  refreshToken: string;
+} {
+  const user = payload.user as Record<string, unknown> | undefined;
+  const refreshToken = typeof payload.refresh_token === "string" ? payload.refresh_token : "";
+
+  return {
+    session: {
+      user: {
+        id: typeof user?.id === "string" ? user.id : "unknown_user",
+        email: typeof user?.email === "string" ? user.email : "",
+        displayName:
+          typeof user?.display_name === "string"
+            ? user.display_name
+            : typeof user?.displayName === "string"
+              ? user.displayName
+              : "Unknown User"
+      },
+      accessToken: typeof payload.access_token === "string" ? payload.access_token : "",
+      accessTokenExpiresAt:
+        typeof payload.expires_at === "string"
+          ? payload.expires_at
+          : new Date(Date.now() + 60 * 60 * 1000).toISOString()
+    },
+    refreshToken
+  };
+}
+
+async function waitForPopupCallback(expectedState: string, popupWindow: Window): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("Browser sign-in timed out."));
+    }, 3 * 60 * 1000);
+
+    const closeWatcher = window.setInterval(() => {
+      if (popupWindow.closed) {
+        cleanup();
+        reject(new Error("Browser sign-in was cancelled."));
+      }
+    }, 400);
+
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+
+      const payload =
+        event.data && typeof event.data === "object"
+          ? (event.data as Record<string, unknown>)
+          : undefined;
+      if (payload?.type !== "gableton-oauth-callback") {
+        return;
+      }
+
+      cleanup();
+
+      if (typeof payload.error === "string" && payload.error) {
+        reject(new Error(payload.error));
+        return;
+      }
+
+      if (payload.state !== expectedState || typeof payload.code !== "string") {
+        reject(new Error("Browser OAuth callback validation failed."));
+        return;
+      }
+
+      resolve(payload.code);
+    };
+
+    const cleanup = () => {
+      window.clearTimeout(timeout);
+      window.clearInterval(closeWatcher);
+      window.removeEventListener("message", onMessage);
+      popupWindow.close();
+    };
+
+    window.addEventListener("message", onMessage);
+  });
 }
 
 function buildDiagnostics(workspacePath: string | null): BridgeDiagnostic[] {
@@ -182,6 +339,82 @@ async function downloadObjects(projectId: string, response: SignDownloadsRespons
 
 function createBrowserDesktopBridge(): DesktopBridge {
   return {
+    async restoreAuthSession(apiBaseUrl: string) {
+      const stored = readStoredAuthSession();
+      if (!stored || stored.apiBaseUrl !== apiBaseUrl) {
+        return null;
+      }
+
+      const response = await fetch(`${apiBaseUrl}/v1/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: stored.refreshToken })
+      });
+      const payload = await readJsonResponse(response);
+      const refreshed = mapAuthSession(payload);
+      writeStoredAuthSession({
+        apiBaseUrl,
+        authSession: refreshed.session,
+        refreshToken: refreshed.refreshToken
+      });
+      return refreshed.session;
+    },
+    async signIn(input: OAuthSignInRequest) {
+      const state = createRandomString(24);
+      const pkce = await createPkcePair();
+      const redirectUri = `${window.location.origin}/oauth/callback`;
+      const authorizeUrl = new URL(`${input.apiBaseUrl}/v1/oauth/authorize`);
+      authorizeUrl.searchParams.set("response_type", "code");
+      authorizeUrl.searchParams.set("client_id", "gableton-desktop");
+      authorizeUrl.searchParams.set("redirect_uri", redirectUri);
+      authorizeUrl.searchParams.set("state", state);
+      authorizeUrl.searchParams.set("code_challenge", pkce.challenge);
+      authorizeUrl.searchParams.set("code_challenge_method", "S256");
+      if (input.loginHint) {
+        authorizeUrl.searchParams.set("login_hint", input.loginHint);
+      }
+
+      const popupWindow = window.open(
+        authorizeUrl.toString(),
+        "gableton-oauth",
+        "popup=yes,width=560,height=760"
+      );
+      if (!popupWindow) {
+        throw new Error("Browser sign-in popup could not be opened.");
+      }
+
+      const code = await waitForPopupCallback(state, popupWindow);
+      const response = await fetch(`${input.apiBaseUrl}/v1/oauth/token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: redirectUri,
+          code_verifier: pkce.verifier,
+          client_id: "gableton-desktop"
+        })
+      });
+      const payload = await readJsonResponse(response);
+      const signedIn = mapAuthSession(payload);
+      writeStoredAuthSession({
+        apiBaseUrl: input.apiBaseUrl,
+        authSession: signedIn.session,
+        refreshToken: signedIn.refreshToken
+      });
+      return signedIn.session;
+    },
+    async signOut(apiBaseUrl: string) {
+      const stored = readStoredAuthSession();
+      if (stored && stored.apiBaseUrl === apiBaseUrl) {
+        await fetch(`${apiBaseUrl}/v1/auth/logout`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: stored.refreshToken })
+        }).catch(() => undefined);
+      }
+      clearStoredAuthSession();
+    },
     async pickFolder() {
       const value = window.prompt(
         "Enter the Ableton project folder path",
@@ -278,8 +511,8 @@ function createBrowserDesktopBridge(): DesktopBridge {
             version: 1,
             repoId: input.repoId,
             parentCommitIds: [input.parentCommitId],
-            authorUserId: "current_user",
-            authorDisplay: "Current User",
+            authorUserId: input.authorUserId,
+            authorDisplay: input.authorDisplay,
             message: title,
             manifestHash,
             createdClientAt: isoNow(),
