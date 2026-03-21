@@ -17,6 +17,23 @@ export interface SavedLocalVersionRecord {
   createdAt: string;
 }
 
+export interface BridgeDiagnostic {
+  kind: "plugin" | "sample" | "ableton_version" | "workspace";
+  severity: "warning" | "blocking";
+  message: string;
+}
+
+export interface WorkspaceInventory {
+  workspacePath: string | null;
+  liveSetFiles: number;
+  audioFiles: number;
+  presetFiles: number;
+  sampleFolders: number;
+  lastScannedAt?: string;
+  diagnostics: BridgeDiagnostic[];
+  abletonOpen: boolean;
+}
+
 export interface SaveLocalVersionInput {
   projectId: string;
   message: string;
@@ -47,9 +64,12 @@ export interface PreparePublishResult {
 
 export interface DesktopBridge {
   pickFolder(): Promise<string | null>;
+  getProjectWorkspace(projectId: string): Promise<string | null>;
+  setProjectWorkspace(projectId: string, workspacePath: string): Promise<void>;
   revealInFinder(path: string): Promise<void>;
   openAbletonProject(path: string): Promise<void>;
-  watchWorkspace(path: string): Promise<void>;
+  watchWorkspace(projectId: string, path: string): Promise<void>;
+  scanWorkspace(projectId: string): Promise<WorkspaceInventory>;
   getWorkspaceSnapshot(projectId: string): Promise<unknown>;
   getEnvironmentDiagnostics(projectId: string): Promise<unknown>;
   startLocalScan(projectId: string): Promise<void>;

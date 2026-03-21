@@ -8,10 +8,12 @@ import {
 } from "react";
 import {
   createInitialProjectMachineState,
+  type EnvironmentIssue,
   type ProjectMachineState,
   type ProjectMachineValue,
   type PublishPayload,
-  type SaveVersionPayload
+  type SaveVersionPayload,
+  type WorkspaceInventory as MachineWorkspaceInventory
 } from "./types";
 import {
   selectPublishEnabled,
@@ -20,11 +22,70 @@ import {
 } from "../selectors/projectSelectors";
 import { useApiClient } from "../../services/api/provider";
 import { useDesktopBridge } from "../../services/desktop-bridge/provider";
+import type {
+  BridgeDiagnostic,
+  WorkspaceInventory as BridgeWorkspaceInventory
+} from "../../services/desktop-bridge/types";
 
 const ProjectMachineContext = createContext<ProjectMachineValue | null>(null);
 
 interface ProjectStateMachineProviderProps extends PropsWithChildren {
   projectId: string;
+}
+
+function toEnvironmentIssue(diagnostic: BridgeDiagnostic, index: number): EnvironmentIssue {
+  return {
+    id: `${diagnostic.kind}_${diagnostic.severity}_${index}`,
+    kind: diagnostic.kind,
+    severity: diagnostic.severity,
+    message: diagnostic.message
+  };
+}
+
+function toMachineInventory(inventory: BridgeWorkspaceInventory): MachineWorkspaceInventory {
+  return {
+    liveSetFiles: inventory.liveSetFiles,
+    audioFiles: inventory.audioFiles,
+    presetFiles: inventory.presetFiles,
+    sampleFolders: inventory.sampleFolders,
+    lastScannedAt: inventory.lastScannedAt
+  };
+}
+
+function applyWorkspaceInventory(
+  current: ProjectMachineState,
+  inventory: BridgeWorkspaceInventory
+): ProjectMachineState {
+  const warnings = inventory.diagnostics
+    .filter((item) => item.severity === "warning")
+    .map((item, index) => toEnvironmentIssue(item, index));
+  const blocks = inventory.diagnostics
+    .filter((item) => item.severity === "blocking")
+    .map((item, index) => toEnvironmentIssue(item, index));
+  const sampleBlocks = inventory.diagnostics.filter(
+    (item) => item.kind === "sample" && item.severity === "blocking"
+  ).length;
+
+  return {
+    ...current,
+    scan: "idle",
+    environment: blocks.length > 0 ? "blocking" : warnings.length > 0 ? "warning" : "healthy",
+    mutationLock: inventory.abletonOpen ? "ableton_open" : "unlocked",
+    context: {
+      ...current.context,
+      workspacePath: inventory.workspacePath ?? "",
+      abletonOpen: inventory.abletonOpen,
+      environmentWarnings: warnings,
+      environmentBlocks: blocks,
+      workspaceInventory: toMachineInventory(inventory),
+      workspaceSummary: {
+        tracksChanged: inventory.liveSetFiles,
+        audioFilesAdded: inventory.audioFiles,
+        automationChanged: inventory.presetFiles > 0,
+        samplesMissing: sampleBlocks
+      }
+    }
+  };
 }
 
 export function ProjectStateMachineProvider({
@@ -36,13 +97,92 @@ export function ProjectStateMachineProvider({
   const [state, setState] = useState<ProjectMachineState>(() => createInitialProjectMachineState(projectId));
 
   useEffect(() => {
+    let cancelled = false;
     setState(createInitialProjectMachineState(projectId));
-  }, [projectId]);
+
+    const hydrateWorkspace = async () => {
+      setState((current) => ({
+        ...current,
+        scan: "scanning"
+      }));
+
+      try {
+        const inventory = await desktopBridge.scanWorkspace(projectId);
+        if (cancelled) {
+          return;
+        }
+        setState((current) => applyWorkspaceInventory(current, inventory));
+      } catch {
+        if (cancelled) {
+          return;
+        }
+        setState((current) => ({
+          ...current,
+          scan: "scan_failed"
+        }));
+      }
+    };
+
+    void hydrateWorkspace();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [desktopBridge, projectId]);
 
   const value = useMemo<ProjectMachineValue>(() => {
     return {
       state,
       commands: {
+        async connectWorkspace() {
+          const selectedFolder = await desktopBridge.pickFolder();
+          if (!selectedFolder) {
+            return { ok: false, reason: "No folder was selected." };
+          }
+
+          setState((current) => ({
+            ...current,
+            scan: "scanning"
+          }));
+
+          try {
+            await desktopBridge.setProjectWorkspace(projectId, selectedFolder);
+            await desktopBridge.watchWorkspace(projectId, selectedFolder);
+            const inventory = await desktopBridge.scanWorkspace(projectId);
+            setState((current) => applyWorkspaceInventory(current, inventory));
+            return { ok: true };
+          } catch (error) {
+            setState((current) => ({
+              ...current,
+              scan: "scan_failed"
+            }));
+            return {
+              ok: false,
+              reason: error instanceof Error ? error.message : "Connecting the workspace failed."
+            };
+          }
+        },
+        async refreshWorkspace() {
+          setState((current) => ({
+            ...current,
+            scan: "scanning"
+          }));
+
+          try {
+            const inventory = await desktopBridge.scanWorkspace(projectId);
+            setState((current) => applyWorkspaceInventory(current, inventory));
+            return { ok: true };
+          } catch (error) {
+            setState((current) => ({
+              ...current,
+              scan: "scan_failed"
+            }));
+            return {
+              ok: false,
+              reason: error instanceof Error ? error.message : "Refreshing the workspace failed."
+            };
+          }
+        },
         async openSaveVersionModal() {
           if (!selectSaveVersionEnabled(state)) {
             return { ok: false, reason: "Save version is not available right now." };
@@ -189,7 +329,7 @@ export function ProjectStateMachineProvider({
                 ...current.context,
                 hasSavedUnpublishedVersion: false,
                 hasUpdateAvailable: false,
-                latestPublishedVersionId: current.context.latestSavedLocalVersionId,
+                latestPublishedVersionId: finalize.commitId,
                 activeChangeRequestId: changeRequest.id,
                 workspaceBaseCommitId: finalize.commitId,
                 remoteHeadCommitId: finalize.refHead,

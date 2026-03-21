@@ -23,7 +23,7 @@ function manifestForRepo(repoId) {
     repoFormat: "gableton-phase1",
     files: [
       {
-        path: `${repoId}/Live Set/Main.als`,
+        path: "Live Set/Main.als",
         blobHash: makeHash(`${repoId}_main_als_remote`)
       }
     ]

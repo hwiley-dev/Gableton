@@ -38,6 +38,14 @@ export interface WorkspaceSummary {
   samplesMissing: number;
 }
 
+export interface WorkspaceInventory {
+  liveSetFiles: number;
+  audioFiles: number;
+  presetFiles: number;
+  sampleFolders: number;
+  lastScannedAt?: string;
+}
+
 export interface ChangeRequestSummary {
   id: string;
   title: string;
@@ -65,6 +73,7 @@ export interface ProjectMachineContext {
   overlapRisk: boolean;
   abletonOpen: boolean;
   workspaceSummary: WorkspaceSummary;
+  workspaceInventory: WorkspaceInventory;
   openChangeRequest?: ChangeRequestSummary;
 }
 
@@ -91,6 +100,8 @@ export interface PublishPayload {
 }
 
 export interface ProjectMachineCommands {
+  connectWorkspace: () => Promise<{ ok: boolean; reason?: string }>;
+  refreshWorkspace: () => Promise<{ ok: boolean; reason?: string }>;
   openSaveVersionModal: () => Promise<{ ok: boolean; reason?: string }>;
   cancelSaveVersionModal: () => void;
   confirmSaveVersion: (payload: SaveVersionPayload) => Promise<{ ok: boolean; reason?: string }>;
@@ -105,15 +116,13 @@ export interface ProjectMachineValue {
   commands: ProjectMachineCommands;
 }
 
-const projectPresets: Record<string, { projectName: string; workspacePath: string; activeLine: string }> = {
+const projectPresets: Record<string, { projectName: string; activeLine: string }> = {
   project_neon_horizon: {
     projectName: "Neon Horizon",
-    workspacePath: "/Users/example/Music/Neon Horizon",
     activeLine: "maya-bridge-textures"
   },
   project_tape_bloom: {
     projectName: "Tape Bloom",
-    workspacePath: "/Users/example/Music/Tape Bloom",
     activeLine: "hunter-tape-pass"
   }
 };
@@ -121,7 +130,6 @@ const projectPresets: Record<string, { projectName: string; workspacePath: strin
 export function createInitialProjectMachineState(projectId: string): ProjectMachineState {
   const preset = projectPresets[projectId] ?? {
     projectName: "Untitled Project",
-    workspacePath: `/Users/example/Music/${projectId}`,
     activeLine: `${projectId}-workline`
   };
 
@@ -134,7 +142,7 @@ export function createInitialProjectMachineState(projectId: string): ProjectMach
     environment: "warning",
     mutationLock: "unlocked",
     context: {
-      workspacePath: preset.workspacePath,
+      workspacePath: "",
       projectId,
       projectName: preset.projectName,
       workspaceName: "Studio MacBook",
@@ -164,6 +172,12 @@ export function createInitialProjectMachineState(projectId: string): ProjectMach
         audioFilesAdded: 2,
         automationChanged: true,
         samplesMissing: 0
+      },
+      workspaceInventory: {
+        liveSetFiles: 1,
+        audioFiles: 2,
+        presetFiles: 1,
+        sampleFolders: 1
       },
       openChangeRequest: {
         id: "cr_1",

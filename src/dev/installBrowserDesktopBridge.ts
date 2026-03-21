@@ -1,4 +1,8 @@
-import type { DesktopBridge } from "../services/desktop-bridge/types";
+import type {
+  BridgeDiagnostic,
+  DesktopBridge,
+  WorkspaceInventory
+} from "../services/desktop-bridge/types";
 import type { ManifestRecord, SignDownloadsResponse, SignUploadsResponse } from "../services/api/types";
 
 const STORAGE_PREFIX = "gableton:desktop-bridge";
@@ -27,6 +31,7 @@ function makeHash(seed: string): string {
 }
 
 interface BrowserBridgeState {
+  workspacePath: string | null;
   versions: Array<{
     id: string;
     message: string;
@@ -38,12 +43,14 @@ interface BrowserBridgeState {
   uploads: Record<string, string>;
   downloads: Record<string, string>;
   lastAppliedManifest?: ManifestRecord;
+  lastInventory?: WorkspaceInventory;
 }
 
 function readState(projectId: string): BrowserBridgeState {
   const raw = window.localStorage.getItem(storageKey(projectId));
   if (!raw) {
     return {
+      workspacePath: null,
       versions: [],
       uploads: {},
       downloads: {}
@@ -53,13 +60,16 @@ function readState(projectId: string): BrowserBridgeState {
   try {
     const parsed = JSON.parse(raw) as Partial<BrowserBridgeState>;
     return {
+      workspacePath: typeof parsed.workspacePath === "string" ? parsed.workspacePath : null,
       versions: Array.isArray(parsed.versions) ? parsed.versions : [],
       uploads: parsed.uploads && typeof parsed.uploads === "object" ? parsed.uploads : {},
       downloads: parsed.downloads && typeof parsed.downloads === "object" ? parsed.downloads : {},
-      lastAppliedManifest: parsed.lastAppliedManifest
+      lastAppliedManifest: parsed.lastAppliedManifest,
+      lastInventory: parsed.lastInventory
     };
   } catch {
     return {
+      workspacePath: null,
       versions: [],
       uploads: {},
       downloads: {}
@@ -71,21 +81,52 @@ function writeState(projectId: string, state: BrowserBridgeState): void {
   window.localStorage.setItem(storageKey(projectId), JSON.stringify(state));
 }
 
-function latestVersionSummary(projectId: string): string[] {
-  const state = readState(projectId);
-  return (
-    state.versions[0]?.workspaceSummary ?? [
-      "Tracks changed: 3",
-      "Audio files added: 2",
-      "Automation changed: Yes",
-      "Samples missing: 0"
-    ]
-  );
+function buildDiagnostics(workspacePath: string | null): BridgeDiagnostic[] {
+  if (!workspacePath) {
+    return [
+      {
+        kind: "workspace",
+        severity: "blocking",
+        message: "No Ableton project folder is connected yet."
+      }
+    ];
+  }
+
+  return [
+    {
+      kind: "plugin",
+      severity: "warning",
+      message: "1 plugin is missing on this machine."
+    }
+  ];
 }
 
-function latestEnvironmentSummary(projectId: string): string[] {
+function buildInventory(projectId: string): WorkspaceInventory {
   const state = readState(projectId);
-  return state.versions[0]?.environmentSummary ?? ["1 plugin is missing on this machine."];
+  const diagnostics = buildDiagnostics(state.workspacePath);
+  if (!state.workspacePath) {
+    return {
+      workspacePath: null,
+      liveSetFiles: 0,
+      audioFiles: 0,
+      presetFiles: 0,
+      sampleFolders: 0,
+      lastScannedAt: isoNow(),
+      diagnostics,
+      abletonOpen: false
+    };
+  }
+
+  return {
+    workspacePath: state.workspacePath,
+    liveSetFiles: 1,
+    audioFiles: 2,
+    presetFiles: 1,
+    sampleFolders: 1,
+    lastScannedAt: isoNow(),
+    diagnostics,
+    abletonOpen: false
+  };
 }
 
 async function uploadObjects(projectId: string, response: SignUploadsResponse): Promise<void> {
@@ -142,18 +183,48 @@ async function downloadObjects(projectId: string, response: SignDownloadsRespons
 function createBrowserDesktopBridge(): DesktopBridge {
   return {
     async pickFolder() {
-      return null;
+      const value = window.prompt(
+        "Enter the Ableton project folder path",
+        "/Users/example/Music/Ableton Project"
+      );
+      return value?.trim() ? value.trim() : null;
+    },
+    async getProjectWorkspace(projectId: string) {
+      return readState(projectId).workspacePath;
+    },
+    async setProjectWorkspace(projectId: string, workspacePath: string) {
+      const state = readState(projectId);
+      state.workspacePath = workspacePath;
+      writeState(projectId, state);
     },
     async revealInFinder(_path: string) {},
     async openAbletonProject(_path: string) {},
-    async watchWorkspace(_path: string) {},
+    async watchWorkspace(_projectId: string, _path: string) {},
+    async scanWorkspace(projectId: string) {
+      const inventory = buildInventory(projectId);
+      const state = readState(projectId);
+      state.lastInventory = inventory;
+      writeState(projectId, state);
+      return inventory;
+    },
     async getWorkspaceSnapshot(projectId: string) {
-      return latestVersionSummary(projectId);
+      const inventory = buildInventory(projectId);
+      return [
+        `Tracks changed: ${inventory.liveSetFiles}`,
+        `Audio files added: ${inventory.audioFiles}`,
+        `Automation changed: ${inventory.presetFiles > 0 ? "Yes" : "No"}`,
+        `Samples missing: ${inventory.sampleFolders > 0 ? 0 : 1}`
+      ];
     },
     async getEnvironmentDiagnostics(projectId: string) {
-      return latestEnvironmentSummary(projectId);
+      return buildInventory(projectId).diagnostics.map((item) => item.message);
     },
-    async startLocalScan(_projectId: string) {},
+    async startLocalScan(projectId: string) {
+      const inventory = buildInventory(projectId);
+      const state = readState(projectId);
+      state.lastInventory = inventory;
+      writeState(projectId, state);
+    },
     async saveLocalVersion(input) {
       const state = readState(input.projectId);
       const version = {
@@ -222,7 +293,7 @@ function createBrowserDesktopBridge(): DesktopBridge {
             repoFormat: "gableton-phase1",
             files: [
               {
-                path: `${input.projectId}/Live Set/Main.als`,
+                path: "Live Set/Main.als",
                 blobHash
               }
             ]

@@ -241,6 +241,61 @@ export class DemoApiClient implements ApiClient {
   private prCounter = 1;
   private commitCounter = 1;
 
+  constructor() {
+    const now = new Date().toISOString();
+
+    this.versions.set("project_neon_horizon", [
+      {
+        id: "commit:remote",
+        title: "Initial approved version",
+        author: "System",
+        createdAt: now,
+        state: "published",
+        summary: "Bootstrap remote head"
+      }
+    ]);
+    this.versions.set("project_tape_bloom", [
+      {
+        id: "commit:tape-remote",
+        title: "Founding version",
+        author: "System",
+        createdAt: now,
+        state: "published",
+        summary: "Bootstrap remote head"
+      }
+    ]);
+    this.changeRequests.set("project_neon_horizon", [
+      {
+        id: "cr_1",
+        title: "Add bridge synth textures",
+        author: "Maya",
+        status: "open",
+        approvals: 0
+      }
+    ]);
+    this.changeRequests.set("project_tape_bloom", []);
+    this.manifests.set("commit:remote", {
+      version: 1,
+      repoFormat: "gableton-phase1",
+      files: [
+        {
+          path: "Live Set/Main.als",
+          blobHash: "sha256:project_neon_horizon_main_als"
+        }
+      ]
+    });
+    this.manifests.set("commit:tape-remote", {
+      version: 1,
+      repoFormat: "gableton-phase1",
+      files: [
+        {
+          path: "Live Set/Main.als",
+          blobHash: "sha256:project_tape_bloom_main_als"
+        }
+      ]
+    });
+  }
+
   async listProjects(): Promise<RepoRecord[]> {
     return this.repos;
   }

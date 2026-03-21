@@ -6,9 +6,13 @@ contextBridge.exposeInMainWorld("gabletonRuntimeConfig", {
 
 contextBridge.exposeInMainWorld("gabletonDesktopBridge", {
   pickFolder: () => ipcRenderer.invoke("gableton:pick-folder"),
+  getProjectWorkspace: (projectId) => ipcRenderer.invoke("gableton:get-project-workspace", projectId),
+  setProjectWorkspace: (projectId, workspacePath) =>
+    ipcRenderer.invoke("gableton:set-project-workspace", projectId, workspacePath),
   revealInFinder: (targetPath) => ipcRenderer.invoke("gableton:reveal-in-finder", targetPath),
   openAbletonProject: (targetPath) => ipcRenderer.invoke("gableton:open-ableton-project", targetPath),
-  watchWorkspace: (targetPath) => ipcRenderer.invoke("gableton:watch-workspace", targetPath),
+  watchWorkspace: (projectId, targetPath) => ipcRenderer.invoke("gableton:watch-workspace", projectId, targetPath),
+  scanWorkspace: (projectId) => ipcRenderer.invoke("gableton:scan-workspace", projectId),
   getWorkspaceSnapshot: (projectId) => ipcRenderer.invoke("gableton:get-workspace-snapshot", projectId),
   getEnvironmentDiagnostics: (projectId) => ipcRenderer.invoke("gableton:get-environment-diagnostics", projectId),
   startLocalScan: (projectId) => ipcRenderer.invoke("gableton:start-local-scan", projectId),

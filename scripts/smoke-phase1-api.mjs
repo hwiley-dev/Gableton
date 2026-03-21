@@ -95,7 +95,7 @@ async function main() {
         repoFormat: "gableton-phase1",
         files: [
           {
-            path: `${repoId}/Live Set/Main.als`,
+            path: "Live Set/Main.als",
             blobHash
           }
         ]

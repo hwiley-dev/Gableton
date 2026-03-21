@@ -4,7 +4,8 @@ import type {
   PreparePublishInput,
   PreparePublishResult,
   SaveLocalVersionInput,
-  SavedLocalVersionRecord
+  SavedLocalVersionRecord,
+  WorkspaceInventory
 } from "./types";
 
 declare global {
@@ -21,22 +22,124 @@ function makeHash(seed: string): string {
   return `sha256:${seed.replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase()}`;
 }
 
-const localVersions = new Map<string, SavedLocalVersionRecord[]>();
+interface DemoBridgeState {
+  workspacePath: string | null;
+  versions: SavedLocalVersionRecord[];
+  uploads: Record<string, string>;
+  downloads: Record<string, string>;
+  lastAppliedManifest?: unknown;
+  lastInventory?: WorkspaceInventory;
+}
+
+const demoState = new Map<string, DemoBridgeState>();
+
+function readState(projectId: string): DemoBridgeState {
+  return (
+    demoState.get(projectId) ?? {
+      workspacePath: null,
+      versions: [],
+      uploads: {},
+      downloads: {}
+    }
+  );
+}
+
+function writeState(projectId: string, state: DemoBridgeState): DemoBridgeState {
+  demoState.set(projectId, state);
+  return state;
+}
+
+function buildDemoInventory(projectId: string): WorkspaceInventory {
+  const state = readState(projectId);
+  const workspacePath = state.workspacePath;
+
+  if (!workspacePath) {
+    return {
+      workspacePath: null,
+      liveSetFiles: 0,
+      audioFiles: 0,
+      presetFiles: 0,
+      sampleFolders: 0,
+      lastScannedAt: isoNow(),
+      diagnostics: [
+        {
+          kind: "workspace",
+          severity: "blocking",
+          message: "No Ableton project folder is connected yet."
+        }
+      ],
+      abletonOpen: false
+    };
+  }
+
+  return {
+    workspacePath,
+    liveSetFiles: 1,
+    audioFiles: 2,
+    presetFiles: 1,
+    sampleFolders: 1,
+    lastScannedAt: isoNow(),
+    diagnostics: [
+      {
+        kind: "plugin",
+        severity: "warning",
+        message: "1 plugin is missing on this machine."
+      }
+    ],
+    abletonOpen: false
+  };
+}
 
 const demoBridge: DesktopBridge = {
   async pickFolder() {
-    return null;
+    if (typeof window === "undefined") {
+      return null;
+    }
+    const value = window.prompt("Enter the Ableton project folder path", "/Users/example/Music/Project");
+    return value?.trim() ? value.trim() : null;
+  },
+  async getProjectWorkspace(projectId: string) {
+    return readState(projectId).workspacePath;
+  },
+  async setProjectWorkspace(projectId: string, workspacePath: string) {
+    const state = readState(projectId);
+    writeState(projectId, {
+      ...state,
+      workspacePath
+    });
   },
   async revealInFinder(_path: string) {},
   async openAbletonProject(_path: string) {},
-  async watchWorkspace(_path: string) {},
-  async getWorkspaceSnapshot(_projectId: string) {
-    return {};
+  async watchWorkspace(_projectId: string, _path: string) {},
+  async scanWorkspace(projectId: string) {
+    const inventory = buildDemoInventory(projectId);
+    const state = readState(projectId);
+    writeState(projectId, {
+      ...state,
+      lastInventory: inventory
+    });
+    return inventory;
   },
-  async getEnvironmentDiagnostics(_projectId: string) {
-    return {};
+  async getWorkspaceSnapshot(projectId: string) {
+    const inventory = buildDemoInventory(projectId);
+    return [
+      `Tracks changed: ${inventory.liveSetFiles}`,
+      `Audio files added: ${inventory.audioFiles}`,
+      `Automation changed: ${inventory.presetFiles > 0 ? "Yes" : "No"}`,
+      `Samples missing: ${inventory.sampleFolders > 0 ? 0 : 1}`
+    ];
   },
-  async startLocalScan(_projectId: string) {},
+  async getEnvironmentDiagnostics(projectId: string) {
+    return buildDemoInventory(projectId).diagnostics.map((item) => item.message);
+  },
+  async startLocalScan(projectId: string) {
+    const inventory = buildDemoInventory(projectId);
+    const state = readState(projectId);
+    writeState(projectId, {
+      ...state,
+      lastInventory: inventory
+    });
+  },
   async saveLocalVersion(input: SaveLocalVersionInput) {
     const version: SavedLocalVersionRecord = {
       id: `version_${Math.random().toString(36).slice(2, 10)}`,
@@ -44,8 +147,11 @@ const demoBridge: DesktopBridge = {
       notes: input.notes,
       createdAt: isoNow()
     };
-    const existing = localVersions.get(input.projectId) ?? [];
-    localVersions.set(input.projectId, [version, ...existing]);
+    const existing = readState(input.projectId);
+    writeState(input.projectId, {
+      ...existing,
+      versions: [version, ...existing.versions]
+    });
     return version;
   },
   async preparePublish(input: PreparePublishInput) {
@@ -57,7 +163,7 @@ const demoBridge: DesktopBridge = {
       repoFormat: "gableton-phase1",
       files: [
         {
-          path: `${input.projectId}/Live Set/Main.als`,
+          path: "Live Set/Main.als",
           blobHash: makeHash(`${input.projectId}_main_als`)
         }
       ]
@@ -118,9 +224,27 @@ const demoBridge: DesktopBridge = {
 
     return result;
   },
-  async uploadPreparedObjects(_projectId: string, _response) {},
-  async downloadSignedObjects(_projectId: string, _response) {},
-  async applyWorkspaceMutation(_projectId: string, _manifest: unknown) {},
+  async uploadPreparedObjects(projectId: string, _response) {
+    const state = readState(projectId);
+    writeState(projectId, {
+      ...state,
+      uploads: { ...state.uploads, lastUpload: isoNow() }
+    });
+  },
+  async downloadSignedObjects(projectId: string, _response) {
+    const state = readState(projectId);
+    writeState(projectId, {
+      ...state,
+      downloads: { ...state.downloads, lastDownload: isoNow() }
+    });
+  },
+  async applyWorkspaceMutation(projectId: string, manifest: unknown) {
+    const state = readState(projectId);
+    writeState(projectId, {
+      ...state,
+      lastAppliedManifest: manifest
+    });
+  },
   async detectAbletonOpen(_projectId: string) {
     return false;
   }
