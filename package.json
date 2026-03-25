@@ -12,6 +12,7 @@
     "dev:api": "node scripts/dev-api.mjs",
     "dev:desktop": "concurrently -k \"npm run dev:api\" \"npm run dev:web\" \"wait-on tcp:127.0.0.1:4174 && electron electron/main.mjs\"",
     "smoke:api": "node scripts/smoke-phase1-api.mjs",
+    "smoke:full": "node scripts/smoke-full.mjs",
     "build": "vite build",
     "build:web": "vite build",
     "build:desktop": "npm run build:web && electron-builder --dir",
