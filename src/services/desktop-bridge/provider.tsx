@@ -35,6 +35,10 @@ interface DemoBridgeState {
 
 const demoState = new Map<string, DemoBridgeState>();
 
+function createBridgeUnavailableError(): Error {
+  return new Error("Desktop bridge is unavailable. Restart the app.");
+}
+
 function readState(projectId: string): DemoBridgeState {
   return (
     demoState.get(projectId) ?? {
@@ -271,13 +275,77 @@ const demoBridge: DesktopBridge = {
   }
 };
 
+const unavailableBridge: DesktopBridge = {
+  async restoreAuthSession() {
+    throw createBridgeUnavailableError();
+  },
+  async signIn() {
+    throw createBridgeUnavailableError();
+  },
+  async signOut() {
+    throw createBridgeUnavailableError();
+  },
+  async pickFolder() {
+    throw createBridgeUnavailableError();
+  },
+  async getProjectWorkspace() {
+    throw createBridgeUnavailableError();
+  },
+  async setProjectWorkspace() {
+    throw createBridgeUnavailableError();
+  },
+  async revealInFinder() {
+    throw createBridgeUnavailableError();
+  },
+  async openAbletonProject() {
+    throw createBridgeUnavailableError();
+  },
+  async watchWorkspace() {
+    throw createBridgeUnavailableError();
+  },
+  async scanWorkspace() {
+    throw createBridgeUnavailableError();
+  },
+  async getWorkspaceSnapshot() {
+    throw createBridgeUnavailableError();
+  },
+  async getEnvironmentDiagnostics() {
+    throw createBridgeUnavailableError();
+  },
+  async startLocalScan() {
+    throw createBridgeUnavailableError();
+  },
+  async saveLocalVersion() {
+    throw createBridgeUnavailableError();
+  },
+  async preparePublish() {
+    throw createBridgeUnavailableError();
+  },
+  async uploadPreparedObjects() {
+    throw createBridgeUnavailableError();
+  },
+  async downloadSignedObjects() {
+    throw createBridgeUnavailableError();
+  },
+  async applyWorkspaceMutation() {
+    throw createBridgeUnavailableError();
+  },
+  async detectAbletonOpen() {
+    throw createBridgeUnavailableError();
+  }
+};
+
 const DesktopBridgeContext = createContext<DesktopBridge>(demoBridge);
 
 export function DesktopBridgeProvider({ children }: PropsWithChildren) {
+  const isElectronRenderer =
+    typeof navigator !== "undefined" && navigator.userAgent.includes("Electron");
   const bridge =
     typeof window !== "undefined" && window.gabletonDesktopBridge
       ? window.gabletonDesktopBridge
-      : demoBridge;
+      : isElectronRenderer
+        ? unavailableBridge
+        : demoBridge;
 
   return <DesktopBridgeContext.Provider value={bridge}>{children}</DesktopBridgeContext.Provider>;
 }

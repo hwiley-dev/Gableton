@@ -70,7 +70,11 @@ export function ChangeRequestsPage() {
   return (
     <PageScaffold
       title="Change Requests"
-      actions={<button onClick={() => setReloadTick((value) => value + 1)}>Refresh</button>}
+      actions={
+        <div className="page-actions">
+          <button onClick={() => setReloadTick((value) => value + 1)}>Refresh</button>
+        </div>
+      }
     >
       {loading ? (
         <SectionCard title="Loading change requests">

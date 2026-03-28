@@ -6,9 +6,9 @@ interface SectionCardProps extends PropsWithChildren {
 
 export function SectionCard({ title, children }: SectionCardProps) {
   return (
-    <section style={{ border: "1px solid #d7d7d7", padding: 16, borderRadius: 8 }}>
-      <h2 style={{ marginTop: 0 }}>{title}</h2>
-      {children}
+    <section className="section-card">
+      <h2 className="section-card__title">{title}</h2>
+      <div className="section-card__body">{children}</div>
     </section>
   );
 }

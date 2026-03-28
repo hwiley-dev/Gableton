@@ -2,7 +2,7 @@ import { useAppRouter } from "../../app/router";
 import { useAuthSession } from "../../services/auth/provider";
 
 export function LeftNavRail() {
-  const { contentMatch, navigate } = useAppRouter();
+  const { contentMatch, currentPath, navigate } = useAppRouter();
   const { session, signOut } = useAuthSession();
   const projectId = contentMatch.params.projectId;
   const items = [
@@ -18,29 +18,36 @@ export function LeftNavRail() {
   ];
 
   return (
-    <nav aria-label="Primary navigation">
-      <h1 style={{ marginTop: 0 }}>Gableton</h1>
+    <nav className="nav-rail" aria-label="Primary navigation">
+      <div className="nav-rail__brand">
+        <div className="nav-rail__eyebrow">Ableton Collaboration Console</div>
+        <h1 className="nav-rail__title">Gableton</h1>
+      </div>
       {session ? (
-        <div style={{ marginBottom: 16, fontSize: 14, color: "#4b5563" }}>
-          <div style={{ fontWeight: 600, color: "#111827" }}>{session.user.displayName}</div>
-          <div>{session.user.email}</div>
+        <div className="nav-rail__user">
+          <div className="nav-rail__user-name">{session.user.displayName}</div>
+          <div className="nav-rail__user-email">{session.user.email}</div>
         </div>
       ) : null}
-      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+      <ul className="nav-rail__list">
         {items.map((item) => (
-          <li key={item.label} style={{ padding: "10px 0" }}>
-            <button onClick={() => navigate(item.to)} style={{ width: "100%", textAlign: "left" }}>
+          <li key={item.label}>
+            <button
+              className={`nav-rail__item-button${
+                currentPath === item.to || currentPath.startsWith(`${item.to}/`) ? " is-active" : ""
+              }`}
+              onClick={() => navigate(item.to)}
+            >
               {item.label}
             </button>
           </li>
         ))}
       </ul>
-      <button
-        onClick={() => void signOut()}
-        style={{ marginTop: 24, width: "100%", textAlign: "left" }}
-      >
-        Sign out
-      </button>
+      <div className="nav-rail__footer">
+        <button className="nav-rail__signout" onClick={() => void signOut()}>
+          Sign out
+        </button>
+      </div>
     </nav>
   );
 }

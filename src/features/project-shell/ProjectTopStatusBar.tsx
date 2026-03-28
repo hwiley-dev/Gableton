@@ -6,13 +6,6 @@ import {
 } from "../../state/selectors/projectSelectors";
 import { PrimaryActionCluster } from "../shared/PrimaryActionCluster";
 
-const toneColors = {
-  neutral: "#6b7280",
-  success: "#1f7a1f",
-  warning: "#9a6700",
-  danger: "#b42318"
-};
-
 export function ProjectTopStatusBar() {
   const { state } = useProjectStateMachine();
   const headline = selectHeadlineStatus(state);
@@ -20,14 +13,17 @@ export function ProjectTopStatusBar() {
   const environment = selectEnvironmentSummary(state);
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 16, alignItems: "center" }}>
-      <div>
-        <div style={{ fontWeight: 700 }}>{state.context.projectName}</div>
-        <div style={{ fontSize: 14, color: toneColors[tone] }}>
-          {state.context.workspaceName} | {headline}
+    <div className="top-status-bar">
+      <div className="top-status-bar__meta">
+        <div className="top-status-bar__project">
+          <div className="top-status-bar__project-name">{state.context.projectName}</div>
+          <div className="status-chip" data-tone={tone}>
+            {headline}
+          </div>
         </div>
+        <div className="top-status-bar__workspace">{state.context.workspaceName}</div>
         {environment.length ? (
-          <div style={{ fontSize: 12, marginTop: 4 }}>{environment.join(" | ")}</div>
+          <div className="top-status-bar__environment">{environment.join(" | ")}</div>
         ) : null}
       </div>
       <PrimaryActionCluster />

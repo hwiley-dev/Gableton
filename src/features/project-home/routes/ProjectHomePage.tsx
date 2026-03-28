@@ -76,7 +76,7 @@ export function ProjectHomePage() {
     <PageScaffold
       title="Project Home"
       actions={
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="page-actions">
           <button onClick={() => navigate(`/projects/${projectId}/versions`)}>
             View versions
           </button>

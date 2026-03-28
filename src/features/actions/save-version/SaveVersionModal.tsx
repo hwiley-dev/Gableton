@@ -31,7 +31,7 @@ export function SaveVersionModal() {
     return (
       <SectionCard title="Save version">
         <p>{blockingReason}</p>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="button-row">
           <button onClick={closeModal}>Close</button>
         </div>
       </SectionCard>
@@ -40,15 +40,15 @@ export function SaveVersionModal() {
 
   return (
     <SectionCard title="Save version">
-      <label style={{ display: "grid", gap: 8, marginBottom: 16 }}>
+      <label className="field-grid">
         <span>Message</span>
         <input value={message} onChange={(event) => setMessage(event.target.value)} />
       </label>
-      <label style={{ display: "grid", gap: 8, marginBottom: 16 }}>
+      <label className="field-grid">
         <span>Notes</span>
         <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={4} />
       </label>
-      <div style={{ marginBottom: 16 }}>
+      <div>
         <strong>Summary</strong>
         <ul>
           {workspaceSummary.map((item) => (
@@ -56,7 +56,7 @@ export function SaveVersionModal() {
           ))}
         </ul>
       </div>
-      <div style={{ marginBottom: 16 }}>
+      <div>
         <strong>Warnings</strong>
         <ul>
           {environmentSummary.map((item) => (
@@ -64,8 +64,8 @@ export function SaveVersionModal() {
           ))}
         </ul>
       </div>
-      {error ? <p style={{ color: "#b42318" }}>{error}</p> : null}
-      <div style={{ display: "flex", gap: 8 }}>
+      {error ? <p className="error-text">{error}</p> : null}
+      <div className="button-row">
         <button
           onClick={() => {
             commands.cancelSaveVersionModal();

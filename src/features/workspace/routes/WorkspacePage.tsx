@@ -16,7 +16,7 @@ export function WorkspacePage() {
     <PageScaffold
       title="Workspace"
       actions={
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="page-actions">
           <button onClick={() => void commands.connectWorkspace()}>Choose folder</button>
           <button onClick={() => void commands.refreshWorkspace()}>Rescan</button>
           <button

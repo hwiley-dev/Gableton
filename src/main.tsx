@@ -11,7 +11,12 @@ if (!rootElement) {
   throw new Error("Root element #root was not found.");
 }
 
-installBrowserDesktopBridge();
+const isElectronRenderer =
+  typeof navigator !== "undefined" && navigator.userAgent.includes("Electron");
+
+if (!isElectronRenderer) {
+  installBrowserDesktopBridge();
+}
 
 const isOAuthCallback =
   typeof window !== "undefined" &&

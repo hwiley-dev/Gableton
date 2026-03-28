@@ -9,7 +9,7 @@ export function UpdateBlockedModal() {
   return (
     <SectionCard title="Update blocked">
       <p>You have local changes that are not saved yet. Save a version before updating.</p>
-      <div style={{ display: "flex", gap: 8 }}>
+      <div className="button-row">
         <button onClick={closeModal}>Cancel</button>
         <button
           onClick={async () => {

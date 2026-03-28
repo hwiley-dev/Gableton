@@ -17,69 +17,38 @@ export function LoginPage() {
   const isBusy = status === "signing_in" || status === "booting";
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        background: "#f3f4f6",
-        color: "#111827"
-      }}
-    >
-      <div
-        style={{
-          width: 460,
-          display: "grid",
-          gap: 18,
-          padding: 32,
-          border: "1px solid #d7d7d7",
-          borderRadius: 12,
-          background: "#ffffff"
-        }}
-      >
+    <div className="auth-shell">
+      <div className="auth-panel">
         <div>
-          <h1 style={{ margin: "0 0 8px" }}>Sign in to Gableton</h1>
-          <p style={{ margin: 0, color: "#4b5563" }}>
+          <div className="auth-panel__eyebrow">Orbital Link Required</div>
+          <h1 className="auth-panel__title">Sign in to Gableton</h1>
+          <p className="auth-panel__copy">
             Gableton will open your default browser to complete sign-in securely.
           </p>
         </div>
 
-        <div
-          style={{
-            border: "1px solid #e5e7eb",
-            borderRadius: 10,
-            padding: 16,
-            background: "#f9fafb",
-            color: "#374151",
-            fontSize: 14,
-            lineHeight: 1.5
-          }}
-        >
-          <div>1. Click <strong>Continue in browser</strong>.</div>
-          <div>2. Complete sign-in in your normal browser.</div>
-          <div>3. Gableton will finish the session and return you to the app.</div>
+        <div className="auth-instruction-block">
+          <ol>
+            <li>Click <strong>Continue in browser</strong>.</li>
+            <li>Complete sign-in in your normal browser.</li>
+            <li>Return to Gableton after the browser callback closes.</li>
+          </ol>
         </div>
 
         {effectiveError ? (
-          <div style={{ color: "#b42318", fontSize: 14 }}>{effectiveError}</div>
+          <div className="error-text">{effectiveError}</div>
         ) : null}
 
         <button
           type="button"
           disabled={isBusy || !apiBaseUrl}
           onClick={() => void handleSignIn()}
-          style={{
-            padding: "12px 14px",
-            borderRadius: 8,
-            border: "1px solid #111827",
-            background: "#111827",
-            color: "#ffffff"
-          }}
+          className="action-button action-button--primary"
         >
           {status === "signing_in" ? "Waiting for browser sign-in..." : "Continue in browser"}
         </button>
 
-        <div style={{ fontSize: 12, color: "#6b7280" }}>
+        <div className="mono-text">
           API endpoint: {apiBaseUrl ?? "Not configured"}
         </div>
       </div>

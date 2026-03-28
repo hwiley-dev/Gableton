@@ -80,7 +80,7 @@ export function ProjectsPage() {
     <PageScaffold
       title="Projects"
       actions={
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="page-actions">
           <button onClick={() => navigate("/projects/new")}>Create project</button>
           <button onClick={() => setReloadTick((value) => value + 1)}>Refresh</button>
         </div>

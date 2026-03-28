@@ -7,12 +7,12 @@ interface PageScaffoldProps extends PropsWithChildren {
 
 export function PageScaffold({ title, actions, children }: PageScaffoldProps) {
   return (
-    <div style={{ display: "grid", gap: 24 }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1 style={{ margin: 0 }}>{title}</h1>
+    <div className="page-scaffold">
+      <header className="page-scaffold__header">
+        <h1 className="page-scaffold__title">{title}</h1>
         {actions}
       </header>
-      <div style={{ display: "grid", gap: 16 }}>{children}</div>
+      <div className="page-scaffold__body">{children}</div>
     </div>
   );
 }

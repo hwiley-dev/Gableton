@@ -13,15 +13,22 @@ function ActionButton({
   label,
   enabled,
   title,
+  variant,
   onClick
 }: {
   label: string;
   enabled: boolean;
   title?: string;
+  variant?: "primary" | "secondary";
   onClick: () => void;
 }) {
   return (
-    <button disabled={!enabled} onClick={onClick} title={title} style={{ padding: "10px 14px" }}>
+    <button
+      className={`action-button${variant === "primary" ? " action-button--primary" : ""}`}
+      disabled={!enabled}
+      onClick={onClick}
+      title={title}
+    >
       {label}
     </button>
   );
@@ -33,9 +40,10 @@ export function PrimaryActionCluster() {
   const projectPathBase = `/projects/${state.context.projectId}`;
 
   return (
-    <div style={{ display: "flex", gap: 8 }}>
+    <div className="primary-action-cluster">
       <ActionButton
         label="Save version"
+        variant="primary"
         enabled={selectSaveVersionEnabled(state)}
         title={selectSaveVersionBlockingReason(state)}
         onClick={async () => {

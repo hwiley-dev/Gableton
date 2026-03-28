@@ -24,7 +24,7 @@ export function PublishChangesModal() {
     return (
       <SectionCard title="Publish changes">
         <p>{blockingReason ?? "Publishing is not available right now."}</p>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="button-row">
           <button onClick={closeModal}>Close</button>
         </div>
       </SectionCard>
@@ -33,19 +33,19 @@ export function PublishChangesModal() {
 
   return (
     <SectionCard title="Publish changes">
-      <label style={{ display: "grid", gap: 8, marginBottom: 16 }}>
+      <label className="field-grid">
         <span>Target line</span>
         <input value={state.context.activeLine} readOnly />
       </label>
-      <label style={{ display: "grid", gap: 8, marginBottom: 16 }}>
+      <label className="field-grid">
         <span>Title</span>
         <input value={title} onChange={(event) => setTitle(event.target.value)} />
       </label>
-      <label style={{ display: "grid", gap: 8, marginBottom: 16 }}>
+      <label className="field-grid">
         <span>Description</span>
         <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={4} />
       </label>
-      <div style={{ marginBottom: 16 }}>
+      <div>
         <strong>Preflight summary</strong>
         <ul>
           <li>Saved version found</li>
@@ -53,7 +53,7 @@ export function PublishChangesModal() {
           <li>Base commit is known</li>
         </ul>
       </div>
-      <div style={{ marginBottom: 16 }}>
+      <div>
         <strong>Change summary</strong>
         <ul>
           {workspaceSummary.map((item) => (
@@ -61,7 +61,7 @@ export function PublishChangesModal() {
           ))}
         </ul>
       </div>
-      <div style={{ marginBottom: 16 }}>
+      <div>
         <strong>Warnings</strong>
         <ul>
           {environmentSummary.map((item) => (
@@ -69,8 +69,8 @@ export function PublishChangesModal() {
           ))}
         </ul>
       </div>
-      {error ? <p style={{ color: "#b42318" }}>{error}</p> : null}
-      <div style={{ display: "flex", gap: 8 }}>
+      {error ? <p className="error-text">{error}</p> : null}
+      <div className="button-row">
         <button onClick={closeModal}>Cancel</button>
         <button
           onClick={async () => {

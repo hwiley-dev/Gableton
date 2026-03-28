@@ -12,20 +12,16 @@ export function AppFrame({ leftNav, topBar, contextPanel, modalHost, children }:
 
   return (
     <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: hasContextPanel ? "240px 1fr 320px" : "240px 1fr",
-        minHeight: "100vh",
-        position: "relative"
-      }}
+      className="app-frame"
+      style={{ gridTemplateColumns: hasContextPanel ? "260px 1fr 320px" : "260px 1fr" }}
     >
-      <aside style={{ borderRight: "1px solid #d7d7d7", padding: 16 }}>{leftNav}</aside>
-      <main style={{ display: "flex", flexDirection: "column" }}>
-        {topBar ? <header style={{ borderBottom: "1px solid #d7d7d7", padding: 16 }}>{topBar}</header> : null}
-        <section style={{ flex: 1, padding: 24 }}>{children}</section>
+      <aside className="app-frame__nav">{leftNav}</aside>
+      <main className="app-frame__main">
+        {topBar ? <header className="app-frame__header">{topBar}</header> : null}
+        <section className="app-frame__content">{children}</section>
       </main>
       {hasContextPanel ? (
-        <aside style={{ borderLeft: "1px solid #d7d7d7", padding: 16 }}>{contextPanel}</aside>
+        <aside className="app-frame__context">{contextPanel}</aside>
       ) : null}
       {modalHost}
     </div>

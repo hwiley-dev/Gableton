@@ -58,7 +58,11 @@ export function VersionsPage() {
   return (
     <PageScaffold
       title="Versions"
-      actions={<button onClick={() => setReloadTick((value) => value + 1)}>Refresh</button>}
+      actions={
+        <div className="page-actions">
+          <button onClick={() => setReloadTick((value) => value + 1)}>Refresh</button>
+        </div>
+      }
     >
       {loading ? (
         <SectionCard title="Loading versions">

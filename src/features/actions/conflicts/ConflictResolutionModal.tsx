@@ -7,7 +7,7 @@ export function ConflictResolutionModal() {
   return (
     <SectionCard title="Conflict requires attention">
       <p>Overlap summary and manual resolution guidance appear here.</p>
-      <div style={{ display: "flex", gap: 8 }}>
+      <div className="button-row">
         <button onClick={closeModal}>Dismiss</button>
         <button onClick={closeModal}>Open in Ableton</button>
       </div>
